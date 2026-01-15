@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
   Check,
@@ -12,6 +12,7 @@ import {
   Zap,
   AlertTriangle,
   Clock,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,64 +27,14 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-interface Notification {
-  id: string;
-  type: "session" | "workflow" | "alert" | "system";
-  title: string;
-  message: string;
-  timestamp: string;
-  read: boolean;
-}
-
-const mockNotifications: Notification[] = [
-  {
-    id: "1",
-    type: "session",
-    title: "Session Completed",
-    message: "Session 'api-development' finished successfully with 3 tasks completed.",
-    timestamp: "2024-01-15T11:00:00Z",
-    read: false,
-  },
-  {
-    id: "2",
-    type: "workflow",
-    title: "Workflow Started",
-    message: "Code Review Pipeline has started processing 5 files.",
-    timestamp: "2024-01-15T10:45:00Z",
-    read: false,
-  },
-  {
-    id: "3",
-    type: "alert",
-    title: "Usage Warning",
-    message: "You've used 75% of your daily token limit.",
-    timestamp: "2024-01-15T10:30:00Z",
-    read: true,
-  },
-  {
-    id: "4",
-    type: "system",
-    title: "MCP Server Update",
-    message: "filesystem-server has been updated to version 2.1.0.",
-    timestamp: "2024-01-15T09:00:00Z",
-    read: true,
-  },
-  {
-    id: "5",
-    type: "session",
-    title: "Session Error",
-    message: "Session 'bug-fix' encountered an error and was stopped.",
-    timestamp: "2024-01-14T18:30:00Z",
-    read: true,
-  },
-];
+import { notificationsApi } from "@/lib/api";
 
 const typeIcons = {
   session: Bot,
   workflow: GitBranch,
   alert: AlertTriangle,
   system: Zap,
+  task: Zap,
 };
 
 const typeColors = {
@@ -91,25 +42,84 @@ const typeColors = {
   workflow: "text-purple-500",
   alert: "text-yellow-500",
   system: "text-green-500",
+  task: "text-orange-500",
 };
 
 export default function NotificationsPage() {
-  const [notifications, setNotifications] = useState(mockNotifications);
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const queryClient = useQueryClient();
 
-  const markAsRead = (id: string) => {
-    setNotifications(
-      notifications.map((n) => (n.id === id ? { ...n, read: true } : n))
-    );
-  };
+  const { data: notifications = [], isLoading } = useQuery({
+    queryKey: ["notifications"],
+    queryFn: () => notificationsApi.list(),
+  });
 
-  const markAllAsRead = () => {
-    setNotifications(notifications.map((n) => ({ ...n, read: true })));
-  };
+  const { data: unreadNotifications = [] } = useQuery({
+    queryKey: ["notifications-unread"],
+    queryFn: notificationsApi.getUnread,
+  });
 
-  const deleteNotification = (id: string) => {
-    setNotifications(notifications.filter((n) => n.id !== id));
-  };
+  const { data: stats } = useQuery({
+    queryKey: ["notifications-stats"],
+    queryFn: notificationsApi.getStats,
+  });
+
+  const { data: preferences } = useQuery({
+    queryKey: ["notifications-preferences"],
+    queryFn: notificationsApi.getPreferences,
+  });
+
+  const markAsReadMutation = useMutation({
+    mutationFn: notificationsApi.markAsRead,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications-unread"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications-stats"] });
+    },
+  });
+
+  const markAllAsReadMutation = useMutation({
+    mutationFn: notificationsApi.markAllAsRead,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications-unread"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications-stats"] });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: notificationsApi.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications-unread"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications-stats"] });
+    },
+  });
+
+  const deleteAllMutation = useMutation({
+    mutationFn: notificationsApi.deleteAll,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications-unread"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications-stats"] });
+    },
+  });
+
+  const deleteReadMutation = useMutation({
+    mutationFn: notificationsApi.deleteRead,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["notifications-stats"] });
+    },
+  });
+
+  const updatePreferencesMutation = useMutation({
+    mutationFn: notificationsApi.updatePreferences,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["notifications-preferences"] });
+    },
+  });
+
+  const unreadCount = stats?.unread || 0;
 
   return (
     <div className="space-y-6">
@@ -121,13 +131,21 @@ export default function NotificationsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={markAllAsRead} disabled={unreadCount === 0}>
+          <Button
+            variant="outline"
+            onClick={() => markAllAsReadMutation.mutate()}
+            disabled={unreadCount === 0 || markAllAsReadMutation.isPending}
+          >
             <CheckCheck className="w-4 h-4 mr-2" />
             Mark All Read
           </Button>
-          <Button variant="outline">
-            <Settings className="w-4 h-4 mr-2" />
-            Settings
+          <Button
+            variant="outline"
+            onClick={() => deleteReadMutation.mutate()}
+            disabled={deleteReadMutation.isPending}
+          >
+            <Trash2 className="w-4 h-4 mr-2" />
+            Clear Read
           </Button>
         </div>
       </div>
@@ -137,29 +155,25 @@ export default function NotificationsPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Unread</CardDescription>
-            <CardTitle className="text-3xl">{unreadCount}</CardTitle>
+            <CardTitle className="text-3xl">{stats?.unread || 0}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Total</CardDescription>
-            <CardTitle className="text-3xl">{notifications.length}</CardTitle>
+            <CardTitle className="text-3xl">{stats?.total || 0}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Session Alerts</CardDescription>
-            <CardTitle className="text-3xl">
-              {notifications.filter((n) => n.type === "session").length}
-            </CardTitle>
+            <CardTitle className="text-3xl">{stats?.byType?.session || 0}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Workflow Updates</CardDescription>
-            <CardTitle className="text-3xl">
-              {notifications.filter((n) => n.type === "workflow").length}
-            </CardTitle>
+            <CardTitle className="text-3xl">{stats?.byType?.workflow || 0}</CardTitle>
           </CardHeader>
         </Card>
       </div>
@@ -185,64 +199,75 @@ export default function NotificationsPage() {
               <CardDescription>Your recent notifications</CardDescription>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-[500px]">
-                <div className="space-y-3">
-                  {notifications.map((notification) => {
-                    const Icon = typeIcons[notification.type];
-                    return (
-                      <div
-                        key={notification.id}
-                        className={`flex items-start justify-between p-4 border rounded-lg ${
-                          !notification.read ? "bg-accent/50" : ""
-                        }`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div
-                            className={`p-2 rounded-lg bg-muted ${
-                              typeColors[notification.type]
-                            }`}
-                          >
-                            <Icon className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <h4 className="font-medium">{notification.title}</h4>
-                              {!notification.read && (
-                                <div className="w-2 h-2 rounded-full bg-blue-500" />
-                              )}
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : notifications.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Bell className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>No notifications</p>
+                </div>
+              ) : (
+                <ScrollArea className="h-[500px]">
+                  <div className="space-y-3">
+                    {notifications.map((notification: any) => {
+                      const Icon = typeIcons[notification.type as keyof typeof typeIcons] || Bell;
+                      return (
+                        <div
+                          key={notification.id}
+                          className={`flex items-start justify-between p-4 border rounded-lg ${
+                            !notification.read ? "bg-accent/50" : ""
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div
+                              className={`p-2 rounded-lg bg-muted ${
+                                typeColors[notification.type as keyof typeof typeColors] || "text-gray-500"
+                              }`}
+                            >
+                              <Icon className="w-4 h-4" />
                             </div>
-                            <p className="text-sm text-muted-foreground">
-                              {notification.message}
-                            </p>
-                            <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
-                              <Clock className="w-3 h-3" />
-                              {new Date(notification.timestamp).toLocaleString()}
+                            <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <h4 className="font-medium">{notification.title}</h4>
+                                {!notification.read && (
+                                  <div className="w-2 h-2 rounded-full bg-blue-500" />
+                                )}
+                              </div>
+                              <p className="text-sm text-muted-foreground">
+                                {notification.message}
+                              </p>
+                              <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
+                                <Clock className="w-3 h-3" />
+                                {new Date(notification.createdAt).toLocaleString()}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {!notification.read && (
+                          <div className="flex items-center gap-1">
+                            {!notification.read && (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => markAsReadMutation.mutate(notification.id)}
+                              >
+                                <Check className="w-4 h-4" />
+                              </Button>
+                            )}
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => markAsRead(notification.id)}
+                              onClick={() => deleteMutation.mutate(notification.id)}
                             >
-                              <Check className="w-4 h-4" />
+                              <Trash2 className="w-4 h-4" />
                             </Button>
-                          )}
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => deleteNotification(notification.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </ScrollArea>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -254,7 +279,11 @@ export default function NotificationsPage() {
               <CardDescription>Notifications you haven&apos;t seen yet</CardDescription>
             </CardHeader>
             <CardContent>
-              {unreadCount === 0 ? (
+              {isLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : unreadNotifications.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Bell className="w-12 h-12 mx-auto mb-4 opacity-50" />
                   <p>No unread notifications</p>
@@ -262,44 +291,42 @@ export default function NotificationsPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {notifications
-                    .filter((n) => !n.read)
-                    .map((notification) => {
-                      const Icon = typeIcons[notification.type];
-                      return (
-                        <div
-                          key={notification.id}
-                          className="flex items-start justify-between p-4 border rounded-lg bg-accent/50"
-                        >
-                          <div className="flex items-start gap-3">
-                            <div
-                              className={`p-2 rounded-lg bg-muted ${
-                                typeColors[notification.type]
-                              }`}
-                            >
-                              <Icon className="w-4 h-4" />
-                            </div>
-                            <div>
-                              <h4 className="font-medium">{notification.title}</h4>
-                              <p className="text-sm text-muted-foreground">
-                                {notification.message}
-                              </p>
-                              <p className="text-xs text-muted-foreground mt-1">
-                                {new Date(notification.timestamp).toLocaleString()}
-                              </p>
-                            </div>
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => markAsRead(notification.id)}
+                  {unreadNotifications.map((notification: any) => {
+                    const Icon = typeIcons[notification.type as keyof typeof typeIcons] || Bell;
+                    return (
+                      <div
+                        key={notification.id}
+                        className="flex items-start justify-between p-4 border rounded-lg bg-accent/50"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div
+                            className={`p-2 rounded-lg bg-muted ${
+                              typeColors[notification.type as keyof typeof typeColors] || "text-gray-500"
+                            }`}
                           >
-                            <Check className="w-4 h-4 mr-1" />
-                            Mark Read
-                          </Button>
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <h4 className="font-medium">{notification.title}</h4>
+                            <p className="text-sm text-muted-foreground">
+                              {notification.message}
+                            </p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {new Date(notification.createdAt).toLocaleString()}
+                            </p>
+                          </div>
                         </div>
-                      );
-                    })}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => markAsReadMutation.mutate(notification.id)}
+                        >
+                          <Check className="w-4 h-4 mr-1" />
+                          Mark Read
+                        </Button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
@@ -325,7 +352,12 @@ export default function NotificationsPage() {
                         Notifications about session starts, completions, and errors
                       </p>
                     </div>
-                    <Switch defaultChecked />
+                    <Switch
+                      checked={preferences?.sessionUpdates !== false}
+                      onCheckedChange={(checked) =>
+                        updatePreferencesMutation.mutate({ sessionUpdates: checked })
+                      }
+                    />
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="space-y-0.5">
@@ -334,7 +366,12 @@ export default function NotificationsPage() {
                         Notifications about workflow progress and completions
                       </p>
                     </div>
-                    <Switch defaultChecked />
+                    <Switch
+                      checked={preferences?.workflowUpdates !== false}
+                      onCheckedChange={(checked) =>
+                        updatePreferencesMutation.mutate({ workflowUpdates: checked })
+                      }
+                    />
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="space-y-0.5">
@@ -343,7 +380,12 @@ export default function NotificationsPage() {
                         Warnings about token usage and cost thresholds
                       </p>
                     </div>
-                    <Switch defaultChecked />
+                    <Switch
+                      checked={preferences?.usageAlerts !== false}
+                      onCheckedChange={(checked) =>
+                        updatePreferencesMutation.mutate({ usageAlerts: checked })
+                      }
+                    />
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="space-y-0.5">
@@ -352,7 +394,26 @@ export default function NotificationsPage() {
                         Updates about MCP servers and system status
                       </p>
                     </div>
-                    <Switch defaultChecked />
+                    <Switch
+                      checked={preferences?.systemUpdates !== false}
+                      onCheckedChange={(checked) =>
+                        updatePreferencesMutation.mutate({ systemUpdates: checked })
+                      }
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label>Task Updates</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Notifications about task assignments and completions
+                      </p>
+                    </div>
+                    <Switch
+                      checked={preferences?.taskUpdates !== false}
+                      onCheckedChange={(checked) =>
+                        updatePreferencesMutation.mutate({ taskUpdates: checked })
+                      }
+                    />
                   </div>
                 </div>
               </div>
@@ -367,7 +428,12 @@ export default function NotificationsPage() {
                         Show notifications in the application
                       </p>
                     </div>
-                    <Switch defaultChecked />
+                    <Switch
+                      checked={preferences?.inApp !== false}
+                      onCheckedChange={(checked) =>
+                        updatePreferencesMutation.mutate({ inApp: checked })
+                      }
+                    />
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="space-y-0.5">
@@ -376,7 +442,12 @@ export default function NotificationsPage() {
                         Send desktop notifications via browser
                       </p>
                     </div>
-                    <Switch />
+                    <Switch
+                      checked={preferences?.browser === true}
+                      onCheckedChange={(checked) =>
+                        updatePreferencesMutation.mutate({ browser: checked })
+                      }
+                    />
                   </div>
                   <div className="flex items-center justify-between">
                     <div className="space-y-0.5">
@@ -385,12 +456,15 @@ export default function NotificationsPage() {
                         Send important notifications via email
                       </p>
                     </div>
-                    <Switch />
+                    <Switch
+                      checked={preferences?.email === true}
+                      onCheckedChange={(checked) =>
+                        updatePreferencesMutation.mutate({ email: checked })
+                      }
+                    />
                   </div>
                 </div>
               </div>
-
-              <Button>Save Preferences</Button>
             </CardContent>
           </Card>
         </TabsContent>
