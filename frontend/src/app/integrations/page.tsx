@@ -113,8 +113,7 @@ export default function IntegrationsPage() {
   });
 
   const testMutation = useMutation({
-    mutationFn: ({ integrationId, config }: { integrationId: string; config: Record<string, string> }) =>
-      integrationsApi.test(integrationId, config),
+    mutationFn: integrationsApi.test,
     onSuccess: (result) => {
       setTestResult(result);
     },

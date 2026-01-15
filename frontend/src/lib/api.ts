@@ -272,10 +272,10 @@ export const integrationsApi = {
   getStats: () => api<any>("/api/integrations/stats"),
   getDefinitions: () => api<any[]>("/api/integrations/definitions"),
   getDefinition: (id: string) => api<any>(`/api/integrations/definitions/${id}`),
-  connect: (integrationId: string, config: Record<string, string>) =>
-    api<any>("/api/integrations/connect", { method: "POST", body: { integrationId, config } }),
-  test: (integrationId: string, config: Record<string, string>) =>
-    api<any>("/api/integrations/test", { method: "POST", body: { integrationId, config } }),
+  connect: (data: { integrationId: string; config: Record<string, string> }) =>
+    api<any>("/api/integrations/connect", { method: "POST", body: data }),
+  test: (data: { integrationId: string; config: Record<string, string> }) =>
+    api<any>("/api/integrations/test", { method: "POST", body: data }),
   disconnect: (id: string) =>
     api<any>(`/api/integrations/${id}`, { method: "DELETE" }),
   sync: (id: string) =>
