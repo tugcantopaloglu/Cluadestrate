@@ -1,18 +1,41 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { serve } from "@hono/node-server";
 import { Server } from "socket.io";
 import { createServer } from "http";
+
+// Existing routes
 import { sessionsRouter } from "./routes/sessions";
 import { mcpRouter } from "./routes/mcp";
 import { rulesRouter } from "./routes/rules";
 import { usageRouter } from "./routes/usage";
 import { gitRouter } from "./routes/git";
 import { terminalRouter } from "./routes/terminal";
+
+// New routes
+import { createWorkflowRoutes } from "./routes/workflows";
+import { createAutomationRoutes } from "./routes/automations";
+import { createKnowledgeRoutes } from "./routes/knowledge";
+import { createTaskRoutes } from "./routes/tasks";
+import { createChainRoutes } from "./routes/chains";
+import { createAlertRoutes } from "./routes/alerts";
+import { createNotificationRoutes } from "./routes/notifications";
+import { createIntegrationRoutes } from "./routes/integrations";
+
+// Existing services
 import { SessionManager } from "./services/SessionManager";
 import { MCPManager } from "./services/MCPManager";
 import { UsageTracker } from "./services/UsageTracker";
 import { RulesEngine } from "./services/RulesEngine";
+
+// New services
+import { WorkflowManager } from "./services/WorkflowManager";
+import { AutomationManager } from "./services/AutomationManager";
+import { KnowledgeManager } from "./services/KnowledgeManager";
+import { TaskManager } from "./services/TaskManager";
+import { ChainManager } from "./services/ChainManager";
+import { AlertManager } from "./services/AlertManager";
+import { NotificationManager } from "./services/NotificationManager";
+import { IntegrationManager } from "./services/IntegrationManager";
 
 const app = new Hono();
 
@@ -37,14 +60,6 @@ app.get("/", (c) => {
 app.get("/health", (c) => {
   return c.json({ status: "healthy", timestamp: new Date().toISOString() });
 });
-
-// API routes
-app.route("/api/sessions", sessionsRouter);
-app.route("/api/mcp", mcpRouter);
-app.route("/api/rules", rulesRouter);
-app.route("/api/usage", usageRouter);
-app.route("/api/git", gitRouter);
-app.route("/api/terminal", terminalRouter);
 
 // Create HTTP server for both Hono and Socket.io
 const httpServer = createServer(async (req, res) => {
@@ -98,8 +113,90 @@ const mcpManager = new MCPManager(io);
 const usageTracker = new UsageTracker();
 const rulesEngine = new RulesEngine();
 
+// Initialize new services
+const workflowManager = new WorkflowManager(sessionManager);
+const automationManager = new AutomationManager(workflowManager, sessionManager);
+const knowledgeManager = new KnowledgeManager();
+const taskManager = new TaskManager();
+const chainManager = new ChainManager();
+const alertManager = new AlertManager();
+const notificationManager = new NotificationManager();
+const integrationManager = new IntegrationManager();
+
 // Export services for routes
-export { sessionManager, mcpManager, usageTracker, rulesEngine, io };
+export {
+  sessionManager,
+  mcpManager,
+  usageTracker,
+  rulesEngine,
+  workflowManager,
+  automationManager,
+  knowledgeManager,
+  taskManager,
+  chainManager,
+  alertManager,
+  notificationManager,
+  integrationManager,
+  io,
+};
+
+// Existing API routes
+app.route("/api/sessions", sessionsRouter);
+app.route("/api/mcp", mcpRouter);
+app.route("/api/rules", rulesRouter);
+app.route("/api/usage", usageRouter);
+app.route("/api/git", gitRouter);
+app.route("/api/terminal", terminalRouter);
+
+// New API routes
+app.route("/api/workflows", createWorkflowRoutes(workflowManager));
+app.route("/api/automations", createAutomationRoutes(automationManager));
+app.route("/api/knowledge", createKnowledgeRoutes(knowledgeManager));
+app.route("/api/tasks", createTaskRoutes(taskManager));
+app.route("/api/chains", createChainRoutes(chainManager));
+app.route("/api/alerts", createAlertRoutes(alertManager));
+app.route("/api/notifications", createNotificationRoutes(notificationManager));
+app.route("/api/integrations", createIntegrationRoutes(integrationManager));
+
+// Wire up service events to notifications
+sessionManager.on("session:started", ({ sessionId, session }) => {
+  notificationManager.notifySessionStarted(sessionId, session.name);
+});
+
+sessionManager.on("session:stopped", ({ sessionId }) => {
+  const session = sessionManager.get(sessionId);
+  if (session) {
+    notificationManager.notifySessionCompleted(sessionId, session.name);
+  }
+});
+
+sessionManager.on("session:error", ({ sessionId, error }) => {
+  const session = sessionManager.get(sessionId);
+  if (session) {
+    notificationManager.notifySessionError(sessionId, session.name, error);
+  }
+});
+
+workflowManager.on("workflow:completed", ({ id }) => {
+  const workflow = workflowManager.get(id);
+  if (workflow) {
+    notificationManager.notifyWorkflowCompleted(id, workflow.name);
+  }
+});
+
+taskManager.on("task:status-changed", ({ task, from, to }) => {
+  if (to === "in_progress" && task.assignedSessionId) {
+    notificationManager.notifyTaskAssigned(task.id, task.title, task.assignedSessionId);
+  }
+});
+
+// Update usage metrics for alerts
+usageTracker.on("usage:updated", (data) => {
+  const dailyLimit = parseInt(process.env.DAILY_TOKEN_LIMIT || "100000");
+  const percent = (data.totalTokens / dailyLimit) * 100;
+  alertManager.setMetric("usage.percent", percent);
+  alertManager.setMetric("usage.tokens", data.totalTokens);
+});
 
 // Socket.io event handling
 io.on("connection", (socket) => {
@@ -136,12 +233,31 @@ io.on("connection", (socket) => {
     io.to(`terminal:${terminalId}`).emit("terminal:output", { terminalId, data });
   });
 
+  // Notification subscription
+  socket.on("notifications:subscribe", () => {
+    socket.join("notifications");
+  });
+
+  // Alert subscription
+  socket.on("alerts:subscribe", () => {
+    socket.join("alerts");
+  });
+
   socket.on("disconnect", () => {
     console.log(`Client disconnected: ${socket.id}`);
   });
 });
 
-const PORT = parseInt(process.env.PORT || "8000", 10);
+// Forward notifications and alerts to WebSocket
+notificationManager.on("notification:created", (notification) => {
+  io.to("notifications").emit("notification:new", notification);
+});
+
+alertManager.on("alert:created", (alert) => {
+  io.to("alerts").emit("alert:new", alert);
+});
+
+const PORT = parseInt(process.env.PORT || "3001", 10);
 
 httpServer.listen(PORT, () => {
   console.log(`
@@ -152,6 +268,22 @@ httpServer.listen(PORT, () => {
   ║                                                           ║
   ║     Server running on http://localhost:${PORT}              ║
   ║     WebSocket enabled                                     ║
+  ║                                                           ║
+  ║     API Endpoints:                                        ║
+  ║     - /api/sessions     Session management                ║
+  ║     - /api/mcp          MCP server management             ║
+  ║     - /api/rules        Rules engine                      ║
+  ║     - /api/usage        Usage tracking                    ║
+  ║     - /api/git          Git operations                    ║
+  ║     - /api/terminal     Terminal access                   ║
+  ║     - /api/workflows    Workflow orchestration            ║
+  ║     - /api/automations  Scheduled automations             ║
+  ║     - /api/knowledge    Knowledge base                    ║
+  ║     - /api/tasks        Task management                   ║
+  ║     - /api/chains       Model chains                      ║
+  ║     - /api/alerts       Alert system                      ║
+  ║     - /api/notifications Notifications                    ║
+  ║     - /api/integrations External integrations             ║
   ║                                                           ║
   ╚═══════════════════════════════════════════════════════════╝
   `);
