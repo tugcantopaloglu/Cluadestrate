@@ -1,15 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   Plus,
   Bell,
-  BellOff,
   Check,
   X,
   Settings,
   Clock,
+  Loader2,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,94 +25,25 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-interface Alert {
-  id: string;
-  type: "warning" | "critical" | "info";
-  title: string;
-  message: string;
-  source: string;
-  triggeredAt: string;
-  acknowledged: boolean;
-}
-
-interface AlertRule {
-  id: string;
-  name: string;
-  condition: string;
-  type: "warning" | "critical" | "info";
-  enabled: boolean;
-}
-
-const mockAlerts: Alert[] = [
-  {
-    id: "1",
-    type: "critical",
-    title: "Token Limit Exceeded",
-    message: "Daily token usage has exceeded 90% of the limit",
-    source: "Usage Monitor",
-    triggeredAt: "2024-01-15T10:30:00Z",
-    acknowledged: false,
-  },
-  {
-    id: "2",
-    type: "warning",
-    title: "Session Idle",
-    message: "Session 'api-development' has been idle for 2 hours",
-    source: "Session Monitor",
-    triggeredAt: "2024-01-15T09:45:00Z",
-    acknowledged: false,
-  },
-  {
-    id: "3",
-    type: "info",
-    title: "MCP Server Connected",
-    message: "filesystem-server successfully connected",
-    source: "MCP Manager",
-    triggeredAt: "2024-01-15T08:00:00Z",
-    acknowledged: true,
-  },
-  {
-    id: "4",
-    type: "warning",
-    title: "High Error Rate",
-    message: "Error rate above 10% in the last hour",
-    source: "Session Monitor",
-    triggeredAt: "2024-01-14T22:00:00Z",
-    acknowledged: true,
-  },
-];
-
-const mockRules: AlertRule[] = [
-  {
-    id: "1",
-    name: "Token Limit Warning",
-    condition: "Token usage > 75%",
-    type: "warning",
-    enabled: true,
-  },
-  {
-    id: "2",
-    name: "Token Limit Critical",
-    condition: "Token usage > 90%",
-    type: "critical",
-    enabled: true,
-  },
-  {
-    id: "3",
-    name: "Session Idle Alert",
-    condition: "Session idle > 1 hour",
-    type: "warning",
-    enabled: true,
-  },
-  {
-    id: "4",
-    name: "Error Rate Alert",
-    condition: "Error rate > 10%",
-    type: "warning",
-    enabled: false,
-  },
-];
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { alertsApi } from "@/lib/api";
 
 const typeColors = {
   critical: "border-red-500/50 bg-red-500/5",
@@ -125,7 +58,101 @@ const typeBadgeColors = {
 } as const;
 
 export default function AlertsPage() {
-  const activeAlerts = mockAlerts.filter((a) => !a.acknowledged);
+  const [isCreateRuleOpen, setIsCreateRuleOpen] = useState(false);
+  const [newRule, setNewRule] = useState({
+    name: "",
+    description: "",
+    type: "warning" as "critical" | "warning" | "info",
+    condition: {
+      metric: "usage.percent",
+      operator: ">" as ">" | ">=" | "<" | "<=" | "==" | "!=",
+      value: 75,
+    },
+  });
+
+  const queryClient = useQueryClient();
+
+  const { data: alerts = [], isLoading: alertsLoading } = useQuery({
+    queryKey: ["alerts"],
+    queryFn: () => alertsApi.list(true),
+  });
+
+  const { data: activeAlerts = [] } = useQuery({
+    queryKey: ["alerts-active"],
+    queryFn: alertsApi.getActive,
+  });
+
+  const { data: stats } = useQuery({
+    queryKey: ["alerts-stats"],
+    queryFn: alertsApi.getStats,
+  });
+
+  const { data: rules = [], isLoading: rulesLoading } = useQuery({
+    queryKey: ["alert-rules"],
+    queryFn: alertsApi.listRules,
+  });
+
+  const acknowledgeMutation = useMutation({
+    mutationFn: alertsApi.acknowledge,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["alerts"] });
+      queryClient.invalidateQueries({ queryKey: ["alerts-active"] });
+      queryClient.invalidateQueries({ queryKey: ["alerts-stats"] });
+    },
+  });
+
+  const acknowledgeAllMutation = useMutation({
+    mutationFn: alertsApi.acknowledgeAll,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["alerts"] });
+      queryClient.invalidateQueries({ queryKey: ["alerts-active"] });
+      queryClient.invalidateQueries({ queryKey: ["alerts-stats"] });
+    },
+  });
+
+  const deleteAlertMutation = useMutation({
+    mutationFn: alertsApi.delete,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["alerts"] });
+      queryClient.invalidateQueries({ queryKey: ["alerts-active"] });
+      queryClient.invalidateQueries({ queryKey: ["alerts-stats"] });
+    },
+  });
+
+  const createRuleMutation = useMutation({
+    mutationFn: alertsApi.createRule,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["alert-rules"] });
+      queryClient.invalidateQueries({ queryKey: ["alerts-stats"] });
+      setIsCreateRuleOpen(false);
+      setNewRule({
+        name: "",
+        description: "",
+        type: "warning",
+        condition: {
+          metric: "usage.percent",
+          operator: ">",
+          value: 75,
+        },
+      });
+    },
+  });
+
+  const toggleRuleMutation = useMutation({
+    mutationFn: alertsApi.toggleRule,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["alert-rules"] });
+      queryClient.invalidateQueries({ queryKey: ["alerts-stats"] });
+    },
+  });
+
+  const deleteRuleMutation = useMutation({
+    mutationFn: alertsApi.deleteRule,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["alert-rules"] });
+      queryClient.invalidateQueries({ queryKey: ["alerts-stats"] });
+    },
+  });
 
   return (
     <div className="space-y-6">
@@ -136,7 +163,7 @@ export default function AlertsPage() {
             Monitor system alerts and configure alert rules
           </p>
         </div>
-        <Button>
+        <Button onClick={() => setIsCreateRuleOpen(true)}>
           <Plus className="w-4 h-4 mr-2" />
           Create Alert Rule
         </Button>
@@ -147,30 +174,26 @@ export default function AlertsPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Active Alerts</CardDescription>
-            <CardTitle className="text-3xl">{activeAlerts.length}</CardTitle>
+            <CardTitle className="text-3xl">{stats?.active || 0}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Critical</CardDescription>
-            <CardTitle className="text-3xl text-red-500">
-              {mockAlerts.filter((a) => a.type === "critical" && !a.acknowledged).length}
-            </CardTitle>
+            <CardTitle className="text-3xl text-red-500">{stats?.critical || 0}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Warning</CardDescription>
-            <CardTitle className="text-3xl text-yellow-500">
-              {mockAlerts.filter((a) => a.type === "warning" && !a.acknowledged).length}
-            </CardTitle>
+            <CardTitle className="text-3xl text-yellow-500">{stats?.warning || 0}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Alert Rules</CardDescription>
             <CardTitle className="text-3xl">
-              {mockRules.filter((r) => r.enabled).length}/{mockRules.length}
+              {stats?.enabledRules || 0}/{stats?.totalRules || 0}
             </CardTitle>
           </CardHeader>
         </Card>
@@ -186,11 +209,30 @@ export default function AlertsPage() {
         <TabsContent value="active">
           <Card>
             <CardHeader>
-              <CardTitle>Active Alerts</CardTitle>
-              <CardDescription>Unacknowledged alerts requiring attention</CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Active Alerts</CardTitle>
+                  <CardDescription>Unacknowledged alerts requiring attention</CardDescription>
+                </div>
+                {activeAlerts.length > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => acknowledgeAllMutation.mutate()}
+                    disabled={acknowledgeAllMutation.isPending}
+                  >
+                    <Check className="w-4 h-4 mr-1" />
+                    Acknowledge All
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
-              {activeAlerts.length === 0 ? (
+              {alertsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : activeAlerts.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <Bell className="w-12 h-12 mx-auto mb-4 opacity-50" />
                   <p>No active alerts</p>
@@ -198,11 +240,11 @@ export default function AlertsPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {activeAlerts.map((alert) => (
+                  {activeAlerts.map((alert: any) => (
                     <div
                       key={alert.id}
                       className={`flex items-start justify-between p-4 border rounded-lg ${
-                        typeColors[alert.type]
+                        typeColors[alert.type as keyof typeof typeColors]
                       }`}
                     >
                       <div className="flex items-start gap-3">
@@ -218,7 +260,7 @@ export default function AlertsPage() {
                         <div>
                           <div className="flex items-center gap-2 mb-1">
                             <h4 className="font-medium">{alert.title}</h4>
-                            <Badge variant={typeBadgeColors[alert.type]}>
+                            <Badge variant={typeBadgeColors[alert.type as keyof typeof typeBadgeColors]}>
                               {alert.type}
                             </Badge>
                           </div>
@@ -233,11 +275,20 @@ export default function AlertsPage() {
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Button size="sm" variant="outline">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => acknowledgeMutation.mutate(alert.id)}
+                          disabled={acknowledgeMutation.isPending}
+                        >
                           <Check className="w-4 h-4 mr-1" />
                           Acknowledge
                         </Button>
-                        <Button size="sm" variant="ghost">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => deleteAlertMutation.mutate(alert.id)}
+                        >
                           <X className="w-4 h-4" />
                         </Button>
                       </div>
@@ -256,37 +307,55 @@ export default function AlertsPage() {
               <CardDescription>All alerts including acknowledged ones</CardDescription>
             </CardHeader>
             <CardContent>
-              <ScrollArea className="h-[400px]">
-                <div className="space-y-3">
-                  {mockAlerts.map((alert) => (
-                    <div
-                      key={alert.id}
-                      className={`flex items-start justify-between p-4 border rounded-lg ${
-                        alert.acknowledged ? "opacity-60" : typeColors[alert.type]
-                      }`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <AlertTriangle className="w-5 h-5 mt-0.5 text-muted-foreground" />
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <h4 className="font-medium">{alert.title}</h4>
-                            <Badge variant={typeBadgeColors[alert.type]}>
-                              {alert.type}
-                            </Badge>
-                            {alert.acknowledged && (
-                              <Badge variant="secondary">Acknowledged</Badge>
-                            )}
-                          </div>
-                          <p className="text-sm text-muted-foreground">{alert.message}</p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            {new Date(alert.triggeredAt).toLocaleString()}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+              {alertsLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
                 </div>
-              </ScrollArea>
+              ) : alerts.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Bell className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>No alert history</p>
+                </div>
+              ) : (
+                <ScrollArea className="h-[400px]">
+                  <div className="space-y-3">
+                    {alerts.map((alert: any) => (
+                      <div
+                        key={alert.id}
+                        className={`flex items-start justify-between p-4 border rounded-lg ${
+                          alert.acknowledged ? "opacity-60" : typeColors[alert.type as keyof typeof typeColors]
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <AlertTriangle className="w-5 h-5 mt-0.5 text-muted-foreground" />
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <h4 className="font-medium">{alert.title}</h4>
+                              <Badge variant={typeBadgeColors[alert.type as keyof typeof typeBadgeColors]}>
+                                {alert.type}
+                              </Badge>
+                              {alert.acknowledged && (
+                                <Badge variant="secondary">Acknowledged</Badge>
+                              )}
+                            </div>
+                            <p className="text-sm text-muted-foreground">{alert.message}</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {new Date(alert.triggeredAt).toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => deleteAlertMutation.mutate(alert.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -298,32 +367,174 @@ export default function AlertsPage() {
               <CardDescription>Configure when alerts are triggered</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {mockRules.map((rule) => (
-                  <div
-                    key={rule.id}
-                    className="flex items-center justify-between p-4 border rounded-lg"
-                  >
-                    <div className="flex items-center gap-4">
-                      <Switch checked={rule.enabled} />
-                      <div>
-                        <h4 className="font-medium">{rule.name}</h4>
-                        <p className="text-sm text-muted-foreground">{rule.condition}</p>
+              {rulesLoading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+                </div>
+              ) : rules.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Settings className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>No alert rules configured</p>
+                  <Button className="mt-4" onClick={() => setIsCreateRuleOpen(true)}>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Create First Rule
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {rules.map((rule: any) => (
+                    <div
+                      key={rule.id}
+                      className="flex items-center justify-between p-4 border rounded-lg"
+                    >
+                      <div className="flex items-center gap-4">
+                        <Switch
+                          checked={rule.enabled}
+                          onCheckedChange={() => toggleRuleMutation.mutate(rule.id)}
+                        />
+                        <div>
+                          <h4 className="font-medium">{rule.name}</h4>
+                          <p className="text-sm text-muted-foreground">
+                            {rule.condition?.metric} {rule.condition?.operator} {rule.condition?.value}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant={typeBadgeColors[rule.type as keyof typeof typeBadgeColors]}>
+                          {rule.type}
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => deleteRuleMutation.mutate(rule.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={typeBadgeColors[rule.type]}>{rule.type}</Badge>
-                      <Button variant="ghost" size="sm">
-                        <Settings className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Create Rule Dialog */}
+      <Dialog open={isCreateRuleOpen} onOpenChange={setIsCreateRuleOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create Alert Rule</DialogTitle>
+            <DialogDescription>
+              Configure a new alert rule to monitor specific metrics.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Rule Name</Label>
+              <Input
+                value={newRule.name}
+                onChange={(e) => setNewRule({ ...newRule, name: e.target.value })}
+                placeholder="e.g., Token Limit Warning"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea
+                value={newRule.description}
+                onChange={(e) => setNewRule({ ...newRule, description: e.target.value })}
+                placeholder="Describe when this alert should trigger..."
+                rows={2}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Alert Type</Label>
+              <Select
+                value={newRule.type}
+                onValueChange={(value: "critical" | "warning" | "info") =>
+                  setNewRule({ ...newRule, type: value })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="critical">Critical</SelectItem>
+                  <SelectItem value="warning">Warning</SelectItem>
+                  <SelectItem value="info">Info</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Condition</Label>
+              <div className="grid grid-cols-3 gap-2">
+                <Select
+                  value={newRule.condition.metric}
+                  onValueChange={(value) =>
+                    setNewRule({
+                      ...newRule,
+                      condition: { ...newRule.condition, metric: value },
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Metric" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="usage.percent">Usage %</SelectItem>
+                    <SelectItem value="usage.tokens">Tokens</SelectItem>
+                    <SelectItem value="sessions.active">Active Sessions</SelectItem>
+                    <SelectItem value="sessions.errors">Error Count</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select
+                  value={newRule.condition.operator}
+                  onValueChange={(value: ">" | ">=" | "<" | "<=" | "==" | "!=") =>
+                    setNewRule({
+                      ...newRule,
+                      condition: { ...newRule.condition, operator: value },
+                    })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Operator" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value=">">{">"}</SelectItem>
+                    <SelectItem value=">=">{">="}</SelectItem>
+                    <SelectItem value="<">{"<"}</SelectItem>
+                    <SelectItem value="<=">{"<="}</SelectItem>
+                    <SelectItem value="==">{"=="}</SelectItem>
+                    <SelectItem value="!=">{"!="}</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Input
+                  type="number"
+                  value={newRule.condition.value}
+                  onChange={(e) =>
+                    setNewRule({
+                      ...newRule,
+                      condition: { ...newRule.condition, value: parseInt(e.target.value) || 0 },
+                    })
+                  }
+                  placeholder="Value"
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCreateRuleOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => createRuleMutation.mutate(newRule)}
+              disabled={!newRule.name.trim() || createRuleMutation.isPending}
+            >
+              {createRuleMutation.isPending ? "Creating..." : "Create Rule"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
