@@ -21,6 +21,17 @@ import { createAlertRoutes } from "./routes/alerts";
 import { createNotificationRoutes } from "./routes/notifications";
 import { createIntegrationRoutes } from "./routes/integrations";
 
+// Additional new routes
+import { createFileSyncRoutes } from "./routes/fileSync";
+import { createAutoUpdateRoutes } from "./routes/autoUpdate";
+import { createImageSharingRoutes } from "./routes/imageSharing";
+import { createN8nRoutes } from "./routes/n8n";
+import { createBotRoutes } from "./routes/bots";
+import { createWorkflowBuilderRoutes } from "./routes/workflowBuilder";
+import { createSupervisorRoutes } from "./routes/supervisor";
+import { createMCPHostAgentRoutes } from "./routes/mcpHostAgent";
+import { createEmailRoutes } from "./routes/email";
+
 // Existing services
 import { SessionManager } from "./services/SessionManager";
 import { MCPManager } from "./services/MCPManager";
@@ -36,6 +47,20 @@ import { ChainManager } from "./services/ChainManager";
 import { AlertManager } from "./services/AlertManager";
 import { NotificationManager } from "./services/NotificationManager";
 import { IntegrationManager } from "./services/IntegrationManager";
+
+// Additional new services
+import { FileSyncManager } from "./services/FileSyncManager";
+import { AutoUpdateManager } from "./services/AutoUpdateManager";
+import { ImageSharingManager } from "./services/ImageSharingManager";
+import { N8nManager } from "./services/N8nManager";
+import { SlackBotManager } from "./services/SlackBotManager";
+import { DiscordBotManager } from "./services/DiscordBotManager";
+import { TelegramBotManager } from "./services/TelegramBotManager";
+import { WorkflowBuilderManager } from "./services/WorkflowBuilderManager";
+import { SupervisorManager } from "./services/SupervisorManager";
+import { MCPHostAgentManager } from "./services/MCPHostAgentManager";
+import { EmailManager } from "./services/EmailManager";
+import { AgentConnectionManager } from "./services/AgentConnectionManager";
 
 const app = new Hono();
 
@@ -123,6 +148,22 @@ const alertManager = new AlertManager();
 const notificationManager = new NotificationManager();
 const integrationManager = new IntegrationManager();
 
+// Initialize additional services
+const fileSyncManager = new FileSyncManager();
+const autoUpdateManager = new AutoUpdateManager();
+const imageSharingManager = new ImageSharingManager();
+const n8nManager = new N8nManager();
+const slackBotManager = new SlackBotManager();
+const discordBotManager = new DiscordBotManager();
+const telegramBotManager = new TelegramBotManager();
+const workflowBuilderManager = new WorkflowBuilderManager();
+const supervisorManager = new SupervisorManager();
+const mcpHostAgentManager = new MCPHostAgentManager();
+const emailManager = new EmailManager();
+
+// Initialize agent connection manager (handles WebSocket connections from remote agents)
+const agentConnectionManager = new AgentConnectionManager(io, mcpHostAgentManager);
+
 // Export services for routes
 export {
   sessionManager,
@@ -137,6 +178,18 @@ export {
   alertManager,
   notificationManager,
   integrationManager,
+  fileSyncManager,
+  autoUpdateManager,
+  imageSharingManager,
+  n8nManager,
+  slackBotManager,
+  discordBotManager,
+  telegramBotManager,
+  workflowBuilderManager,
+  supervisorManager,
+  mcpHostAgentManager,
+  emailManager,
+  agentConnectionManager,
   io,
 };
 
@@ -157,6 +210,17 @@ app.route("/api/chains", createChainRoutes(chainManager));
 app.route("/api/alerts", createAlertRoutes(alertManager));
 app.route("/api/notifications", createNotificationRoutes(notificationManager));
 app.route("/api/integrations", createIntegrationRoutes(integrationManager));
+
+// Additional new API routes
+app.route("/api/file-sync", createFileSyncRoutes(fileSyncManager));
+app.route("/api/auto-update", createAutoUpdateRoutes(autoUpdateManager));
+app.route("/api/images", createImageSharingRoutes(imageSharingManager));
+app.route("/api/n8n", createN8nRoutes(n8nManager));
+app.route("/api/bots", createBotRoutes(slackBotManager, discordBotManager, telegramBotManager));
+app.route("/api/workflow-builder", createWorkflowBuilderRoutes(workflowBuilderManager));
+app.route("/api/supervisors", createSupervisorRoutes(supervisorManager));
+app.route("/api/mcp-hosts", createMCPHostAgentRoutes(mcpHostAgentManager, agentConnectionManager));
+app.route("/api/email", createEmailRoutes(emailManager));
 
 // Wire up service events to notifications
 sessionManager.on("session:started", ({ sessionId, session }) => {
@@ -196,6 +260,29 @@ usageTracker.on("usage:updated", (data) => {
   const percent = (data.totalTokens / dailyLimit) * 100;
   alertManager.setMetric("usage.percent", percent);
   alertManager.setMetric("usage.tokens", data.totalTokens);
+});
+
+// Agent connection events
+agentConnectionManager.on("agent:connected", (host) => {
+  console.log(`Agent connected: ${host.hostName} (${host.id})`);
+  notificationManager.create({
+    type: "info",
+    title: "Agent Connected",
+    message: `Remote agent "${host.hostName}" has connected`,
+    source: "agent-connection",
+    metadata: { hostId: host.id, platform: host.platform },
+  });
+});
+
+agentConnectionManager.on("agent:disconnected", ({ hostId, reason }) => {
+  console.log(`Agent disconnected: ${hostId} (${reason})`);
+  notificationManager.create({
+    type: "warning",
+    title: "Agent Disconnected",
+    message: `Remote agent has disconnected: ${reason}`,
+    source: "agent-connection",
+    metadata: { hostId, reason },
+  });
 });
 
 // Socket.io event handling
@@ -261,30 +348,49 @@ const PORT = parseInt(process.env.PORT || "3001", 10);
 
 httpServer.listen(PORT, () => {
   console.log(`
-  ╔═══════════════════════════════════════════════════════════╗
-  ║                                                           ║
-  ║     🎭 Cluadestrate Backend Server                        ║
-  ║     "Command Your AI Fleet"                               ║
-  ║                                                           ║
-  ║     Server running on http://localhost:${PORT}              ║
-  ║     WebSocket enabled                                     ║
-  ║                                                           ║
-  ║     API Endpoints:                                        ║
-  ║     - /api/sessions     Session management                ║
-  ║     - /api/mcp          MCP server management             ║
-  ║     - /api/rules        Rules engine                      ║
-  ║     - /api/usage        Usage tracking                    ║
-  ║     - /api/git          Git operations                    ║
-  ║     - /api/terminal     Terminal access                   ║
-  ║     - /api/workflows    Workflow orchestration            ║
-  ║     - /api/automations  Scheduled automations             ║
-  ║     - /api/knowledge    Knowledge base                    ║
-  ║     - /api/tasks        Task management                   ║
-  ║     - /api/chains       Model chains                      ║
-  ║     - /api/alerts       Alert system                      ║
-  ║     - /api/notifications Notifications                    ║
-  ║     - /api/integrations External integrations             ║
-  ║                                                           ║
-  ╚═══════════════════════════════════════════════════════════╝
+  ╔═══════════════════════════════════════════════════════════════╗
+  ║                                                               ║
+  ║     🎭 Cluadestrate Backend Server                            ║
+  ║     "Command Your AI Fleet"                                   ║
+  ║                                                               ║
+  ║     Server running on http://localhost:${PORT}                  ║
+  ║     WebSocket enabled                                         ║
+  ║                                                               ║
+  ║     Core API Endpoints:                                       ║
+  ║     - /api/sessions        Session management                 ║
+  ║     - /api/mcp             MCP server management              ║
+  ║     - /api/rules           Rules engine                       ║
+  ║     - /api/usage           Usage tracking & export            ║
+  ║     - /api/git             Git operations                     ║
+  ║     - /api/terminal        Terminal access                    ║
+  ║                                                               ║
+  ║     Orchestration:                                            ║
+  ║     - /api/workflows       Workflow orchestration             ║
+  ║     - /api/workflow-builder Visual workflow builder           ║
+  ║     - /api/supervisors     Multi-agent supervisors            ║
+  ║     - /api/automations     Scheduled automations              ║
+  ║     - /api/chains          Model chains                       ║
+  ║                                                               ║
+  ║     Management:                                               ║
+  ║     - /api/tasks           Task management                    ║
+  ║     - /api/knowledge       Knowledge base                     ║
+  ║     - /api/file-sync       File synchronization               ║
+  ║     - /api/images          Image sharing                      ║
+  ║                                                               ║
+  ║     Notifications & Alerts:                                   ║
+  ║     - /api/alerts          Alert system                       ║
+  ║     - /api/notifications   In-app notifications               ║
+  ║     - /api/email           Email notifications                ║
+  ║                                                               ║
+  ║     Integrations:                                             ║
+  ║     - /api/integrations    External integrations              ║
+  ║     - /api/n8n             n8n workflow automation            ║
+  ║     - /api/bots            Slack/Discord/Telegram bots        ║
+  ║                                                               ║
+  ║     Infrastructure:                                           ║
+  ║     - /api/mcp-hosts       Remote MCP host agents             ║
+  ║     - /api/auto-update     Auto-update management             ║
+  ║                                                               ║
+  ╚═══════════════════════════════════════════════════════════════╝
   `);
 });

@@ -1,0 +1,50 @@
+{
+  "name": "cluadestrate-agent",
+  "version": "1.0.0",
+  "description": "MCP Host Agent for Cluadestrate - runs on remote machines to host MCP servers",
+  "main": "dist/index.js",
+  "bin": {
+    "cluadestrate-agent": "dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "build:windows": "pkg . --targets node18-win-x64 --output dist/cluadestrate-agent-win.exe",
+    "build:linux": "pkg . --targets node18-linux-x64 --output dist/cluadestrate-agent-linux",
+    "build:linux-arm": "pkg . --targets node18-linux-arm64 --output dist/cluadestrate-agent-linux-arm64",
+    "build:macos": "pkg . --targets node18-macos-x64 --output dist/cluadestrate-agent-macos",
+    "build:all": "npm run build && npm run build:windows && npm run build:linux && npm run build:linux-arm && npm run build:macos",
+    "install:service": "node dist/service-install.js install",
+    "uninstall:service": "node dist/service-install.js uninstall"
+  },
+  "pkg": {
+    "scripts": "dist/**/*.js",
+    "assets": [
+      "config.example.yaml"
+    ],
+    "outputPath": "dist"
+  },
+  "dependencies": {
+    "ws": "^8.14.2",
+    "yaml": "^2.3.4",
+    "systeminformation": "^5.21.20",
+    "commander": "^11.1.0",
+    "node-pty": "^1.0.0",
+    "screenshot-desktop": "^1.15.0",
+    "chokidar": "^3.5.3",
+    "winston": "^3.11.0",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/ws": "^8.5.10",
+    "@types/uuid": "^9.0.7",
+    "typescript": "^5.3.2",
+    "tsx": "^4.6.2",
+    "pkg": "^5.8.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -76,22 +76,102 @@ usageRouter.get("/export", async (c) => {
   const tracker = await getUsageTracker();
   const days = parseInt(c.req.query("days") || "30", 10);
   const format = c.req.query("format") || "json";
+  const includeDetails = c.req.query("details") === "true";
 
   const history = await tracker.getHistory(days);
+  const summary = await tracker.getSummary();
 
   if (format === "csv") {
-    const csv = [
-      "date,tokens,cost",
-      ...history.map((h: any) => `${h.date},${h.tokens},${h.cost.toFixed(4)}`),
-    ].join("\n");
+    let csv: string;
+
+    if (includeDetails) {
+      // Detailed export with session breakdown
+      const headers = ["date", "session_id", "session_name", "input_tokens", "output_tokens", "total_tokens", "cost_usd"];
+      const rows = [headers.join(",")];
+
+      for (const day of history) {
+        // Add daily summary row
+        rows.push(`${day.date},_total_,Daily Total,${day.inputTokens || 0},${day.outputTokens || 0},${day.tokens},${day.cost.toFixed(4)}`);
+
+        // Add session breakdown if available
+        if (day.sessions) {
+          for (const session of day.sessions) {
+            rows.push(`${day.date},${session.sessionId},${session.sessionName},${session.inputTokens},${session.outputTokens},${session.totalTokens},${session.cost.toFixed(4)}`);
+          }
+        }
+      }
+      csv = rows.join("\n");
+    } else {
+      // Simple daily summary
+      const headers = ["date", "total_tokens", "input_tokens", "output_tokens", "estimated_cost_usd", "session_count"];
+      const rows = [headers.join(",")];
+
+      for (const day of history) {
+        rows.push(`${day.date},${day.tokens},${day.inputTokens || 0},${day.outputTokens || 0},${day.cost.toFixed(4)},${day.sessionCount || 0}`);
+      }
+      csv = rows.join("\n");
+    }
 
     return new Response(csv, {
       headers: {
         "Content-Type": "text/csv",
-        "Content-Disposition": `attachment; filename="usage-${new Date().toISOString().split("T")[0]}.csv"`,
+        "Content-Disposition": `attachment; filename="orchestrate-usage-${new Date().toISOString().split("T")[0]}.csv"`,
       },
     });
   }
 
-  return c.json(history);
+  // JSON export with full details
+  return c.json({
+    exportDate: new Date().toISOString(),
+    period: {
+      days,
+      startDate: history.length > 0 ? history[history.length - 1].date : null,
+      endDate: history.length > 0 ? history[0].date : null,
+    },
+    summary: {
+      totalTokens: summary.totalTokens,
+      totalCost: summary.totalCost,
+      bySession: summary.bySession,
+    },
+    daily: history,
+  });
+});
+
+// Export sessions usage
+usageRouter.get("/export/sessions", async (c) => {
+  const tracker = await getUsageTracker();
+  const format = c.req.query("format") || "json";
+  const summary = await tracker.getSummary();
+
+  const sessions = Object.entries(summary.bySession || {}).map(([sessionId, data]: [string, any]) => ({
+    sessionId,
+    sessionName: data.name || sessionId,
+    totalTokens: data.tokens || 0,
+    inputTokens: data.inputTokens || 0,
+    outputTokens: data.outputTokens || 0,
+    estimatedCost: data.cost || 0,
+    requestCount: data.requests || 0,
+    lastUsed: data.lastUsed,
+  }));
+
+  if (format === "csv") {
+    const headers = ["session_id", "session_name", "total_tokens", "input_tokens", "output_tokens", "cost_usd", "request_count", "last_used"];
+    const rows = [headers.join(",")];
+
+    for (const session of sessions) {
+      rows.push(`${session.sessionId},"${session.sessionName}",${session.totalTokens},${session.inputTokens},${session.outputTokens},${session.estimatedCost.toFixed(4)},${session.requestCount},${session.lastUsed || ""}`);
+    }
+
+    return new Response(rows.join("\n"), {
+      headers: {
+        "Content-Type": "text/csv",
+        "Content-Disposition": `attachment; filename="orchestrate-sessions-usage-${new Date().toISOString().split("T")[0]}.csv"`,
+      },
+    });
+  }
+
+  return c.json({
+    exportDate: new Date().toISOString(),
+    sessions,
+  });
 });

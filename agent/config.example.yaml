@@ -1,0 +1,61 @@
+# Cluadestrate MCP Host Agent Configuration
+
+# Host identification
+hostName: "my-computer"
+
+# Connection to central Cluadestrate server
+server:
+  url: "ws://localhost:3001"
+  authToken: "your-auth-token-here"
+  reconnectInterval: 5000
+  heartbeatInterval: 10000
+
+# Agent settings
+agent:
+  port: 3002
+  autoStart: true
+  capabilities:
+    - mcp_hosting
+    - file_sync
+    - screenshot
+    - terminal
+    - auto_update
+    - process_management
+
+# MCP Servers to manage
+mcpServers:
+  - name: "filesystem"
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/workspace"]
+    autoStart: true
+    env: {}
+
+  - name: "github"
+    command: "npx"
+    args: ["-y", "@modelcontextprotocol/server-github"]
+    autoStart: false
+    env:
+      GITHUB_TOKEN: "your-github-token"
+
+# File sync settings
+fileSync:
+  enabled: true
+  watchPaths:
+    - "/path/to/sync"
+  ignoredPatterns:
+    - "node_modules"
+    - ".git"
+    - "*.log"
+
+# Logging
+logging:
+  level: "info"
+  file: "./logs/agent.log"
+  maxSize: "10m"
+  maxFiles: 5
+
+# Security
+security:
+  tlsEnabled: false
+  certPath: ""
+  keyPath: ""
