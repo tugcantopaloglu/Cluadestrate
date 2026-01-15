@@ -62,8 +62,23 @@ export class TaskManager extends EventEmitter {
     if (!task) return undefined;
 
     const now = new Date().toISOString();
+
+    // Convert null to undefined for optional fields
+    const cleanedUpdates: Partial<Task> = {};
+    if (updates.title !== undefined) cleanedUpdates.title = updates.title;
+    if (updates.description !== undefined) cleanedUpdates.description = updates.description;
+    if (updates.status !== undefined) cleanedUpdates.status = updates.status;
+    if (updates.priority !== undefined) cleanedUpdates.priority = updates.priority;
+    if (updates.tags !== undefined) cleanedUpdates.tags = updates.tags;
+    if (updates.assignedSessionId !== undefined) {
+      cleanedUpdates.assignedSessionId = updates.assignedSessionId === null ? undefined : updates.assignedSessionId;
+    }
+    if (updates.dueDate !== undefined) {
+      cleanedUpdates.dueDate = updates.dueDate === null ? undefined : updates.dueDate;
+    }
+
     const updateData: Partial<Task> = {
-      ...updates,
+      ...cleanedUpdates,
       updatedAt: now,
     };
 

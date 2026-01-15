@@ -1,5 +1,6 @@
 import type { UsageRecord, UsageSummary, TokenUsage, UsageAlert } from "../types";
 import { v4 as uuidv4 } from "uuid";
+import { EventEmitter } from "events";
 
 interface UsageThresholds {
   warning: number;
@@ -13,11 +14,15 @@ const MODEL_COSTS = {
   "claude-haiku-3-5-20241022": { input: 0.25, output: 1.25 },
 };
 
-export class UsageTracker {
+export class UsageTracker extends EventEmitter {
   private records: UsageRecord[] = [];
   private alerts: UsageAlert[] = [];
   private thresholds: UsageThresholds = { warning: 75, critical: 90 };
   private dailyLimit: number = 100000; // Default daily token limit
+
+  constructor() {
+    super();
+  }
 
   async trackUsage(
     sessionId: string,
@@ -49,6 +54,14 @@ export class UsageTracker {
 
     this.records.push(record);
     await this.checkAlerts();
+
+    // Emit usage updated event
+    const summary = await this.getSummary();
+    this.emit("usage:updated", {
+      totalTokens: summary.totalTokens,
+      totalCost: summary.totalCost,
+      record,
+    });
 
     return record;
   }

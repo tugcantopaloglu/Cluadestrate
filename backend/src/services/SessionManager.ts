@@ -1,6 +1,7 @@
 import { spawn, ChildProcess } from "child_process";
 import { v4 as uuidv4 } from "uuid";
 import { Server } from "socket.io";
+import { EventEmitter } from "events";
 import type {
   Session,
   SessionConfig,
@@ -26,12 +27,35 @@ const DEFAULT_CONFIG: SessionConfig = {
   thinkingMode: "standard",
 };
 
-export class SessionManager {
+export class SessionManager extends EventEmitter {
   private sessions: Map<string, ActiveSession> = new Map();
   private io: Server;
 
   constructor(io: Server) {
+    super();
     this.io = io;
+  }
+
+  // Alias methods for external use
+  get(id: string): Session | null {
+    const active = this.sessions.get(id);
+    return active?.session || null;
+  }
+
+  async create(request: CreateSessionRequest): Promise<Session> {
+    return this.createSession(request);
+  }
+
+  async start(id: string, initialPrompt?: string): Promise<boolean> {
+    return this.startSession(id, initialPrompt);
+  }
+
+  async stop(id: string): Promise<boolean> {
+    return this.stopSession(id);
+  }
+
+  async delete(id: string): Promise<boolean> {
+    return this.deleteSession(id);
   }
 
   async createSession(request: CreateSessionRequest): Promise<Session> {
@@ -169,6 +193,8 @@ export class SessionManager {
         status: "running",
       });
 
+      this.emit("session:started", { sessionId: id, session: active.session });
+
       return true;
     } catch (error) {
       active.session.status = "error";
@@ -176,6 +202,7 @@ export class SessionManager {
         sessionId: id,
         error: (error as Error).message,
       });
+      this.emit("session:error", { sessionId: id, error: (error as Error).message });
       return false;
     }
   }
@@ -201,6 +228,8 @@ export class SessionManager {
         sessionId: id,
         status: "idle",
       });
+
+      this.emit("session:stopped", { sessionId: id });
 
       return true;
     } catch (error) {
