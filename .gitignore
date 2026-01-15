@@ -1,0 +1,81 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Testing
+coverage/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# IDE and editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Debug
+*.pem
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Vercel
+.vercel
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+data/*.db
+
+# Redis
+dump.rdb
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Certificates (keep example but ignore real ones)
+*.crt
+*.key
+!*.example.crt
+!*.example.key
+
+# Claude Code specific
+.claude/
+
+# Package manager locks (keep one)
+# Uncomment the ones you don't use:
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
