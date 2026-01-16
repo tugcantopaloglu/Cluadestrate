@@ -1,2 +1,2 @@
 # Cluadestrate
-Command Your AI Fleet
+AI Fleet in one center.
