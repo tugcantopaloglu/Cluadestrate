@@ -23,7 +23,7 @@ export class Agent extends EventEmitter {
     this.mcpManager = new MCPManager();
     this.resourceMonitor = new ResourceMonitor();
     this.commandExecutor = new CommandExecutor(this.mcpManager);
-    this.wsClient = new WebSocketClient(config);
+    this.wsClient = new WebSocketClient(config, () => this.currentResources, () => this.mcpManager.getAllServersStatus());
 
     this.setupEventHandlers();
   }
@@ -60,15 +60,6 @@ export class Agent extends EventEmitter {
     this.wsClient.on("error", (error: Error) => {
       logger.error(`WebSocket error: ${error.message}`);
       this.emit("error", error);
-    });
-
-    // Handle resource requests from WebSocket client
-    this.wsClient.on("getResources", () => {
-      return this.currentResources;
-    });
-
-    this.wsClient.on("getMCPServers", () => {
-      return this.mcpManager.getAllServersStatus();
     });
 
     // MCP Manager events

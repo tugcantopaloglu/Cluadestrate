@@ -1,7 +1,7 @@
 import { EventEmitter } from "events";
 import { Server, Socket } from "socket.io";
 import { randomUUID } from "crypto";
-import { MCPHostAgentManager } from "./MCPHostAgentManager";
+import { MCPHostAgentManager } from "./MCPHostAgentManager.js";
 
 interface AgentConnection {
   socket: Socket;
@@ -51,21 +51,16 @@ export class AgentConnectionManager extends EventEmitter {
   private mcpHostManager: MCPHostAgentManager;
   private connections: Map<string, AgentConnection> = new Map();
   private validTokens: Set<string> = new Set();
-  private heartbeatCheckInterval: NodeJS.Timer | null = null;
+  private heartbeatCheckInterval: NodeJS.Timeout | null = null;
+  private pendingCommands = new Map<string, { socketId: string; expiresAt: number }>();
 
   constructor(io: Server, mcpHostManager: MCPHostAgentManager) {
     super();
     this.io = io;
     this.mcpHostManager = mcpHostManager;
 
-    // Load valid tokens from environment or generate default
     const envTokens = process.env.AGENT_AUTH_TOKENS?.split(",") || [];
-    envTokens.forEach((t) => this.validTokens.add(t.trim()));
-
-    // Add a default token for development
-    if (this.validTokens.size === 0) {
-      this.validTokens.add("dev-agent-token");
-    }
+    envTokens.map((token) => token.trim()).filter(Boolean).forEach((token) => this.validTokens.add(token));
 
     this.setupSocketHandlers();
     this.startHeartbeatCheck();
@@ -77,6 +72,10 @@ export class AgentConnectionManager extends EventEmitter {
 
     agentNamespace.on("connection", (socket: Socket) => {
       console.log(`Agent connection attempt: ${socket.id}`);
+      const authTimeout = setTimeout(() => {
+        if (!this.getConnectionBySocketId(socket.id)) socket.disconnect(true);
+      }, 10000);
+      socket.once("disconnect", () => clearTimeout(authTimeout));
 
       // Handle authentication
       socket.on("auth", (payload: AuthPayload) => {
@@ -106,10 +105,12 @@ export class AgentConnectionManager extends EventEmitter {
   }
 
   private handleAuth(socket: Socket, payload: AuthPayload): void {
-    console.log(`Agent auth attempt: ${payload.hostName} (${payload.platform})`);
-
-    // Validate token
-    if (!this.validTokens.has(payload.authToken)) {
+    if (this.getConnectionBySocketId(socket.id)) return;
+    if (!payload || typeof payload.hostName !== "string" || !payload.hostName.trim()
+      || typeof payload.version !== "string"
+      || !["windows", "macos", "linux"].includes(payload.platform)
+      || !Array.isArray(payload.capabilities) || !payload.capabilities.every((value) => typeof value === "string")
+      || typeof payload.authToken !== "string" || !this.validTokens.has(payload.authToken)) {
       console.log(`Agent auth failed: invalid token`);
       socket.emit("auth_response", {
         type: "auth_response",
@@ -177,7 +178,9 @@ export class AgentConnectionManager extends EventEmitter {
 
   private handleHeartbeat(socket: Socket, payload: HeartbeatPayload): void {
     const connection = this.getConnectionBySocketId(socket.id);
-    if (!connection) return;
+    if (!connection || !payload || payload.hostId !== connection.hostId || !payload.resources
+      || ![payload.resources.cpuPercent, payload.resources.memoryPercent, payload.resources.diskPercent].every(Number.isFinite)
+      || !Array.isArray(payload.mcpServers) || !payload.mcpServers.every((server) => server && typeof server.name === "string" && typeof server.status === "string")) return;
 
     connection.lastHeartbeat = new Date();
 
@@ -215,6 +218,9 @@ export class AgentConnectionManager extends EventEmitter {
   }
 
   private handleMCPServersUpdate(socket: Socket, payload: { hostId: string; servers: any[] }): void {
+    const connection = this.getConnectionBySocketId(socket.id);
+    if (!connection || !payload || payload.hostId !== connection.hostId || !Array.isArray(payload.servers)
+      || !payload.servers.every((server) => server && typeof server.name === "string" && typeof server.status === "string")) return;
     this.mcpHostManager.updateHostMCPServers(
       payload.hostId,
       payload.servers.map((s) => ({
@@ -235,6 +241,10 @@ export class AgentConnectionManager extends EventEmitter {
     socket: Socket,
     payload: { commandId: string; success: boolean; result?: any; error?: string }
   ): void {
+    if (!this.getConnectionBySocketId(socket.id) || !payload || typeof payload.commandId !== "string") return;
+    const pending = this.pendingCommands.get(payload.commandId);
+    if (!pending || pending.socketId !== socket.id || pending.expiresAt <= Date.now()) return;
+    this.pendingCommands.delete(payload.commandId);
     this.emit("command:response", payload);
   }
 
@@ -249,6 +259,9 @@ export class AgentConnectionManager extends EventEmitter {
 
     // Remove connection
     this.connections.delete(connection.hostId);
+    for (const [commandId, pending] of this.pendingCommands) {
+      if (pending.socketId === socket.id) this.pendingCommands.delete(commandId);
+    }
 
     this.emit("agent:disconnected", { hostId: connection.hostId, reason });
   }
@@ -257,6 +270,9 @@ export class AgentConnectionManager extends EventEmitter {
     this.heartbeatCheckInterval = setInterval(() => {
       const now = Date.now();
       const timeout = 30000; // 30 seconds
+      for (const [commandId, pending] of this.pendingCommands) {
+        if (pending.expiresAt <= now) this.pendingCommands.delete(commandId);
+      }
 
       for (const [hostId, connection] of this.connections) {
         const timeSinceLastHeartbeat = now - connection.lastHeartbeat.getTime();
@@ -290,6 +306,7 @@ export class AgentConnectionManager extends EventEmitter {
       return { commandId, sent: false };
     }
 
+    this.pendingCommands.set(commandId, { socketId: connection.socket.id, expiresAt: Date.now() + 60000 });
     connection.socket.emit("command", {
       type: "command",
       id: randomUUID(),
@@ -321,7 +338,7 @@ export class AgentConnectionManager extends EventEmitter {
 
   // Add valid token
   addToken(token: string): void {
-    this.validTokens.add(token);
+    if (token.trim()) this.validTokens.add(token.trim());
   }
 
   // Remove token
@@ -341,5 +358,6 @@ export class AgentConnectionManager extends EventEmitter {
     }
 
     this.connections.clear();
+    this.pendingCommands.clear();
   }
 }

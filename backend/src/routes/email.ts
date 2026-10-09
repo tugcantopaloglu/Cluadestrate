@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { EmailManager } from "../services/EmailManager";
+import { EmailManager } from "../services/EmailManager.js";
 
 export function createEmailRoutes(emailManager: EmailManager) {
   const router = new Hono();

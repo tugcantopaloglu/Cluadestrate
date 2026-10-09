@@ -1,5 +1,5 @@
 import { EventEmitter } from "events";
-import { Storage, generateId } from "./Storage";
+import { Storage, generateId } from "./Storage.js";
 import type {
   Chain,
   ChainStep,
@@ -7,7 +7,7 @@ import type {
   CreateChainInput,
   ChainRunResult,
   ModelTier,
-} from "../types/chain";
+} from "../types/chain.js";
 
 // Model configurations for different tiers
 const MODEL_IDS: Record<ModelTier, string> = {

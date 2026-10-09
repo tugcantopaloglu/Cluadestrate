@@ -1,12 +1,12 @@
 import { EventEmitter } from "events";
-import { Storage, generateId } from "./Storage";
-import { WorkflowManager } from "./WorkflowManager";
-import { SessionManager } from "./SessionManager";
+import { Storage, generateId } from "./Storage.js";
+import { WorkflowManager } from "./WorkflowManager.js";
+import { SessionManager } from "./SessionManager.js";
 import type {
   Automation,
   AutomationRunLog,
   CreateAutomationInput,
-} from "../types/automation";
+} from "../types/automation.js";
 
 // Simple cron parser for basic expressions
 function parseCron(expression: string): { minutes: number[]; hours: number[]; days: number[] } {

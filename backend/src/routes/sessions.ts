@@ -1,12 +1,12 @@
 import { Hono } from "hono";
-import type { CreateSessionRequest, UpdateSessionRequest } from "../types";
+import type { CreateSessionRequest, UpdateSessionRequest } from "../types/index.js";
 
 // We'll import the manager from index.ts via dynamic import to avoid circular deps
 let sessionManager: any = null;
 
 const getSessionManager = async () => {
   if (!sessionManager) {
-    const module = await import("../index");
+    const module = await import("../index.js");
     sessionManager = module.sessionManager;
   }
   return sessionManager;

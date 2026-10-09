@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-import { ChainManager } from "../services/ChainManager";
-import type { CreateChainInput } from "../types/chain";
+import { ChainManager } from "../services/ChainManager.js";
+import type { CreateChainInput } from "../types/chain.js";
 
 export function createChainRoutes(chainManager: ChainManager) {
   const app = new Hono();

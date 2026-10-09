@@ -1,5 +1,5 @@
 import { EventEmitter } from "events";
-import { Storage, generateId } from "./Storage";
+import { Storage, generateId } from "./Storage.js";
 import type {
   Alert,
   AlertRule,
@@ -8,7 +8,7 @@ import type {
   CreateAlertRuleInput,
   AlertStats,
   AlertCondition,
-} from "../types/alert";
+} from "../types/alert.js";
 
 export class AlertManager extends EventEmitter {
   private alertStorage: Storage<Alert>;

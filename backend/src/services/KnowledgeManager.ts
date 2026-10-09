@@ -1,12 +1,12 @@
 import { EventEmitter } from "events";
 import * as fs from "fs";
 import * as path from "path";
-import { Storage, generateId } from "./Storage";
+import { Storage, generateId } from "./Storage.js";
 import type {
   KnowledgeItem,
   CreateKnowledgeInput,
   KnowledgeSearchResult,
-} from "../types/knowledge";
+} from "../types/knowledge.js";
 
 export class KnowledgeManager extends EventEmitter {
   private storage: Storage<KnowledgeItem>;

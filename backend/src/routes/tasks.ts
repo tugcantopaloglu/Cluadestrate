@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-import { TaskManager } from "../services/TaskManager";
-import type { CreateTaskInput, UpdateTaskInput, TaskStatus } from "../types/task";
+import { TaskManager } from "../services/TaskManager.js";
+import type { CreateTaskInput, UpdateTaskInput, TaskStatus } from "../types/task.js";
 
 export function createTaskRoutes(taskManager: TaskManager) {
   const app = new Hono();

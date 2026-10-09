@@ -1,11 +1,11 @@
 import { Hono } from "hono";
-import type { CreateMCPServerRequest } from "../types";
+import type { CreateMCPServerRequest } from "../types/index.js";
 
 let mcpManager: any = null;
 
 const getMCPManager = async () => {
   if (!mcpManager) {
-    const module = await import("../index");
+    const module = await import("../index.js");
     mcpManager = module.mcpManager;
   }
   return mcpManager;

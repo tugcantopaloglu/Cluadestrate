@@ -71,7 +71,7 @@ export function saveConfig(config: AgentConfig, configPath: string): void {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
-  fs.writeFileSync(configPath, yaml.stringify(config), "utf-8");
+  fs.writeFileSync(configPath, yaml.stringify(config), { encoding: "utf-8", mode: 0o600 });
 }
 
 function mergeConfig(defaults: AgentConfig, overrides: Partial<AgentConfig>): AgentConfig {

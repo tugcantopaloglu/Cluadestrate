@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-import { AutomationManager } from "../services/AutomationManager";
-import type { CreateAutomationInput } from "../types/automation";
+import { AutomationManager } from "../services/AutomationManager.js";
+import type { CreateAutomationInput } from "../types/automation.js";
 
 export function createAutomationRoutes(automationManager: AutomationManager) {
   const app = new Hono();

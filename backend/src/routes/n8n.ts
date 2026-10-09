@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { N8nManager } from "../services/N8nManager";
+import { N8nManager } from "../services/N8nManager.js";
 
 export function createN8nRoutes(n8nManager: N8nManager) {
   const router = new Hono();

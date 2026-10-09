@@ -1,6 +1,11 @@
 import { Hono } from "hono";
-import { IntegrationManager } from "../services/IntegrationManager";
-import type { ConnectIntegrationInput } from "../types/integration";
+import { IntegrationManager } from "../services/IntegrationManager.js";
+import type { ConnectIntegrationInput, Integration } from "../types/integration.js";
+
+const redactIntegration = (integration: Integration) => ({
+  ...integration,
+  config: Object.fromEntries(Object.keys(integration.config).map((key) => [key, "***"])),
+});
 
 export function createIntegrationRoutes(integrationManager: IntegrationManager) {
   const app = new Hono();
@@ -20,7 +25,7 @@ export function createIntegrationRoutes(integrationManager: IntegrationManager) 
   // List connected integrations only
   app.get("/connected", (c) => {
     const integrations = integrationManager.list();
-    return c.json(integrations);
+    return c.json(integrations.map(redactIntegration));
   });
 
   // Get integration definitions (available integrations)
@@ -47,13 +52,7 @@ export function createIntegrationRoutes(integrationManager: IntegrationManager) 
       return c.json({ error: "Integration not found" }, 404);
     }
     // Don't return sensitive config values
-    return c.json({
-      ...integration,
-      config: Object.keys(integration.config).reduce((acc, key) => {
-        acc[key] = "***";
-        return acc;
-      }, {} as Record<string, string>),
-    });
+    return c.json(redactIntegration(integration));
   });
 
   // Connect an integration
@@ -61,13 +60,7 @@ export function createIntegrationRoutes(integrationManager: IntegrationManager) 
     try {
       const body = await c.req.json<ConnectIntegrationInput>();
       const integration = await integrationManager.connect(body);
-      return c.json({
-        ...integration,
-        config: Object.keys(integration.config).reduce((acc, key) => {
-          acc[key] = "***";
-          return acc;
-        }, {} as Record<string, string>),
-      }, 201);
+      return c.json(redactIntegration(integration), 201);
     } catch (error) {
       return c.json({ error: error instanceof Error ? error.message : "Failed to connect integration" }, 400);
     }
@@ -102,13 +95,7 @@ export function createIntegrationRoutes(integrationManager: IntegrationManager) 
       if (!integration) {
         return c.json({ error: "Integration not found" }, 404);
       }
-      return c.json({
-        ...integration,
-        config: Object.keys(integration.config).reduce((acc, key) => {
-          acc[key] = "***";
-          return acc;
-        }, {} as Record<string, string>),
-      });
+      return c.json(redactIntegration(integration));
     } catch (error) {
       return c.json({ error: error instanceof Error ? error.message : "Sync failed" }, 400);
     }

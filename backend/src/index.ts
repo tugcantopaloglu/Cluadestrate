@@ -1,74 +1,85 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { bodyLimit } from "hono/body-limit";
 import { Server } from "socket.io";
-import { createServer } from "http";
+import { createAdaptorServer } from "@hono/node-server";
+import { allowedOrigins, getListenHost, isLocalRequest } from "./localAccess.js";
 
 // Existing routes
-import { sessionsRouter } from "./routes/sessions";
-import { mcpRouter } from "./routes/mcp";
-import { rulesRouter } from "./routes/rules";
-import { usageRouter } from "./routes/usage";
-import { gitRouter } from "./routes/git";
-import { terminalRouter } from "./routes/terminal";
+import { sessionsRouter } from "./routes/sessions.js";
+import { mcpRouter } from "./routes/mcp.js";
+import { rulesRouter } from "./routes/rules.js";
+import { usageRouter } from "./routes/usage.js";
+import { gitRouter } from "./routes/git.js";
+import { terminalRouter } from "./routes/terminal.js";
 
 // New routes
-import { createWorkflowRoutes } from "./routes/workflows";
-import { createAutomationRoutes } from "./routes/automations";
-import { createKnowledgeRoutes } from "./routes/knowledge";
-import { createTaskRoutes } from "./routes/tasks";
-import { createChainRoutes } from "./routes/chains";
-import { createAlertRoutes } from "./routes/alerts";
-import { createNotificationRoutes } from "./routes/notifications";
-import { createIntegrationRoutes } from "./routes/integrations";
+import { createWorkflowRoutes } from "./routes/workflows.js";
+import { createAutomationRoutes } from "./routes/automations.js";
+import { createKnowledgeRoutes } from "./routes/knowledge.js";
+import { createTaskRoutes } from "./routes/tasks.js";
+import { createChainRoutes } from "./routes/chains.js";
+import { createAlertRoutes } from "./routes/alerts.js";
+import { createNotificationRoutes } from "./routes/notifications.js";
+import { createIntegrationRoutes } from "./routes/integrations.js";
 
 // Additional new routes
-import { createFileSyncRoutes } from "./routes/fileSync";
-import { createAutoUpdateRoutes } from "./routes/autoUpdate";
-import { createImageSharingRoutes } from "./routes/imageSharing";
-import { createN8nRoutes } from "./routes/n8n";
-import { createBotRoutes } from "./routes/bots";
-import { createWorkflowBuilderRoutes } from "./routes/workflowBuilder";
-import { createSupervisorRoutes } from "./routes/supervisor";
-import { createMCPHostAgentRoutes } from "./routes/mcpHostAgent";
-import { createEmailRoutes } from "./routes/email";
+import { createFileSyncRoutes } from "./routes/fileSync.js";
+import { createAutoUpdateRoutes } from "./routes/autoUpdate.js";
+import { createImageSharingRoutes } from "./routes/imageSharing.js";
+import { createN8nRoutes } from "./routes/n8n.js";
+import { createBotRoutes } from "./routes/bots.js";
+import { createWorkflowBuilderRoutes } from "./routes/workflowBuilder.js";
+import { createSupervisorRoutes } from "./routes/supervisor.js";
+import { createMCPHostAgentRoutes } from "./routes/mcpHostAgent.js";
+import { createEmailRoutes } from "./routes/email.js";
 
 // Existing services
-import { SessionManager } from "./services/SessionManager";
-import { MCPManager } from "./services/MCPManager";
-import { UsageTracker } from "./services/UsageTracker";
-import { RulesEngine } from "./services/RulesEngine";
+import { SessionManager } from "./services/SessionManager.js";
+import { MCPManager } from "./services/MCPManager.js";
+import { UsageTracker } from "./services/UsageTracker.js";
+import { RulesEngine } from "./services/RulesEngine.js";
 
 // New services
-import { WorkflowManager } from "./services/WorkflowManager";
-import { AutomationManager } from "./services/AutomationManager";
-import { KnowledgeManager } from "./services/KnowledgeManager";
-import { TaskManager } from "./services/TaskManager";
-import { ChainManager } from "./services/ChainManager";
-import { AlertManager } from "./services/AlertManager";
-import { NotificationManager } from "./services/NotificationManager";
-import { IntegrationManager } from "./services/IntegrationManager";
+import { WorkflowManager } from "./services/WorkflowManager.js";
+import { AutomationManager } from "./services/AutomationManager.js";
+import { KnowledgeManager } from "./services/KnowledgeManager.js";
+import { TaskManager } from "./services/TaskManager.js";
+import { ChainManager } from "./services/ChainManager.js";
+import { AlertManager } from "./services/AlertManager.js";
+import { NotificationManager } from "./services/NotificationManager.js";
+import { IntegrationManager } from "./services/IntegrationManager.js";
 
 // Additional new services
-import { FileSyncManager } from "./services/FileSyncManager";
-import { AutoUpdateManager } from "./services/AutoUpdateManager";
-import { ImageSharingManager } from "./services/ImageSharingManager";
-import { N8nManager } from "./services/N8nManager";
-import { SlackBotManager } from "./services/SlackBotManager";
-import { DiscordBotManager } from "./services/DiscordBotManager";
-import { TelegramBotManager } from "./services/TelegramBotManager";
-import { WorkflowBuilderManager } from "./services/WorkflowBuilderManager";
-import { SupervisorManager } from "./services/SupervisorManager";
-import { MCPHostAgentManager } from "./services/MCPHostAgentManager";
-import { EmailManager } from "./services/EmailManager";
-import { AgentConnectionManager } from "./services/AgentConnectionManager";
+import { FileSyncManager } from "./services/FileSyncManager.js";
+import { AutoUpdateManager } from "./services/AutoUpdateManager.js";
+import { ImageSharingManager } from "./services/ImageSharingManager.js";
+import { N8nManager } from "./services/N8nManager.js";
+import { SlackBotManager } from "./services/SlackBotManager.js";
+import { DiscordBotManager } from "./services/DiscordBotManager.js";
+import { TelegramBotManager } from "./services/TelegramBotManager.js";
+import { WorkflowBuilderManager } from "./services/WorkflowBuilderManager.js";
+import { SupervisorManager } from "./services/SupervisorManager.js";
+import { MCPHostAgentManager } from "./services/MCPHostAgentManager.js";
+import { EmailManager } from "./services/EmailManager.js";
+import { AgentConnectionManager } from "./services/AgentConnectionManager.js";
 
 const app = new Hono();
+const HOST = getListenHost();
+
+app.use("*", async (c, next) => {
+  if (!isLocalRequest(c.req.header("host"), c.req.header("origin"))) {
+    return c.json({ error: "Request origin or host is not allowed" }, 403);
+  }
+  await next();
+});
+app.use("*", bodyLimit({ maxSize: 25 * 1024 * 1024 }));
 
 // CORS middleware
 app.use(
   "*",
   cors({
-    origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
+    origin: allowedOrigins,
     credentials: true,
   })
 );
@@ -87,48 +98,16 @@ app.get("/health", (c) => {
 });
 
 // Create HTTP server for both Hono and Socket.io
-const httpServer = createServer(async (req, res) => {
-  // Convert Node.js request to fetch Request
-  const url = new URL(req.url || "", `http://${req.headers.host}`);
-  const headers = new Headers();
-  Object.entries(req.headers).forEach(([key, value]) => {
-    if (value) headers.set(key, Array.isArray(value) ? value[0] : value);
-  });
-
-  const method = req.method || "GET";
-  let body: BodyInit | null = null;
-
-  if (method !== "GET" && method !== "HEAD") {
-    const chunks: Buffer[] = [];
-    for await (const chunk of req) {
-      chunks.push(chunk as Buffer);
-    }
-    body = Buffer.concat(chunks);
-  }
-
-  const request = new Request(url.toString(), {
-    method,
-    headers,
-    body,
-  });
-
-  const response = await app.fetch(request);
-
-  // Convert Response back to Node.js response
-  res.statusCode = response.status;
-  response.headers.forEach((value, key) => {
-    res.setHeader(key, value);
-  });
-
-  const responseBody = await response.arrayBuffer();
-  res.end(Buffer.from(responseBody));
-});
+const httpServer = createAdaptorServer({ fetch: app.fetch });
 
 // Initialize Socket.io
 const io = new Server(httpServer, {
   cors: {
-    origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
+    origin: allowedOrigins,
     credentials: true,
+  },
+  allowRequest: (req, callback) => {
+    callback(null, isLocalRequest(req.headers.host, req.headers.origin));
   },
 });
 
@@ -136,6 +115,8 @@ const io = new Server(httpServer, {
 const sessionManager = new SessionManager(io);
 const mcpManager = new MCPManager(io);
 const usageTracker = new UsageTracker();
+const dailyTokenLimit = parseInt(process.env.DAILY_TOKEN_LIMIT || "100000", 10);
+usageTracker.setDailyLimit(Number.isFinite(dailyTokenLimit) ? dailyTokenLimit : 100000);
 const rulesEngine = new RulesEngine();
 
 // Initialize new services
@@ -256,8 +237,7 @@ taskManager.on("task:status-changed", ({ task, from, to }) => {
 
 // Update usage metrics for alerts
 usageTracker.on("usage:updated", (data) => {
-  const dailyLimit = parseInt(process.env.DAILY_TOKEN_LIMIT || "100000");
-  const percent = (data.totalTokens / dailyLimit) * 100;
+  const percent = dailyTokenLimit > 0 ? (data.totalTokens / dailyTokenLimit) * 100 : 0;
   alertManager.setMetric("usage.percent", percent);
   alertManager.setMetric("usage.tokens", data.totalTokens);
 });
@@ -266,10 +246,9 @@ usageTracker.on("usage:updated", (data) => {
 agentConnectionManager.on("agent:connected", (host) => {
   console.log(`Agent connected: ${host.hostName} (${host.id})`);
   notificationManager.create({
-    type: "info",
+    type: "system",
     title: "Agent Connected",
     message: `Remote agent "${host.hostName}" has connected`,
-    source: "agent-connection",
     metadata: { hostId: host.id, platform: host.platform },
   });
 });
@@ -277,10 +256,9 @@ agentConnectionManager.on("agent:connected", (host) => {
 agentConnectionManager.on("agent:disconnected", ({ hostId, reason }) => {
   console.log(`Agent disconnected: ${hostId} (${reason})`);
   notificationManager.create({
-    type: "warning",
+    type: "system",
     title: "Agent Disconnected",
     message: `Remote agent has disconnected: ${reason}`,
-    source: "agent-connection",
     metadata: { hostId, reason },
   });
 });
@@ -346,7 +324,7 @@ alertManager.on("alert:created", (alert) => {
 
 const PORT = parseInt(process.env.PORT || "3001", 10);
 
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, HOST, () => {
   console.log(`
   ╔═══════════════════════════════════════════════════════════════╗
   ║                                                               ║

@@ -1,6 +1,6 @@
 import { io, Socket } from "socket.io-client";
 
-const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:8000";
+const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 let socket: Socket | null = null;
 
@@ -25,8 +25,6 @@ export function connectSocket(): Promise<Socket> {
       return;
     }
 
-    s.connect();
-
     const onConnect = () => {
       s.off("connect_error", onError);
       resolve(s);
@@ -39,6 +37,7 @@ export function connectSocket(): Promise<Socket> {
 
     s.once("connect", onConnect);
     s.once("connect_error", onError);
+    s.connect();
   });
 }
 

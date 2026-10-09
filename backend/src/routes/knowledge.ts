@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-import { KnowledgeManager } from "../services/KnowledgeManager";
-import type { CreateKnowledgeInput } from "../types/knowledge";
+import { KnowledgeManager } from "../services/KnowledgeManager.js";
+import type { CreateKnowledgeInput } from "../types/knowledge.js";
 
 export function createKnowledgeRoutes(knowledgeManager: KnowledgeManager) {
   const app = new Hono();

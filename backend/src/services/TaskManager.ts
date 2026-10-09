@@ -1,12 +1,12 @@
 import { EventEmitter } from "events";
-import { Storage, generateId } from "./Storage";
+import { Storage, generateId } from "./Storage.js";
 import type {
   Task,
   CreateTaskInput,
   UpdateTaskInput,
   TaskBoard,
   TaskStatus,
-} from "../types/task";
+} from "../types/task.js";
 
 export class TaskManager extends EventEmitter {
   private storage: Storage<Task>;

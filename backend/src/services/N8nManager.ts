@@ -11,7 +11,7 @@ import {
   N8nCreateTaskRequest,
   N8nTriggerWorkflowRequest,
   N8nApiResponse,
-} from "../types/n8n";
+} from "../types/n8n.js";
 
 export class N8nManager extends EventEmitter {
   private config: N8nConfig = {

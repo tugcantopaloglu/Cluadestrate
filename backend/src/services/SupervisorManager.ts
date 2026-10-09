@@ -10,7 +10,7 @@ import {
   SupervisorTemplate,
   SupervisorStats,
   PlanStep,
-} from "../types/supervisor";
+} from "../types/supervisor.js";
 
 export class SupervisorManager extends EventEmitter {
   private supervisors: Map<string, SupervisorConfig> = new Map();

@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { ImageSharingManager } from "../services/ImageSharingManager";
+import { ImageSharingManager } from "../services/ImageSharingManager.js";
 
 export function createImageSharingRoutes(imageSharingManager: ImageSharingManager) {
   const router = new Hono();
@@ -78,7 +78,9 @@ export function createImageSharingRoutes(imageSharingManager: ImageSharingManage
     }
     const image = imageSharingManager.getImage(id);
     c.header("Content-Type", image?.mimeType || "image/png");
-    return c.body(content);
+    c.header("X-Content-Type-Options", "nosniff");
+    c.header("Content-Security-Policy", "sandbox; default-src 'none'; style-src 'unsafe-inline'");
+    return c.body(new Uint8Array(content));
   });
 
   // Get image as base64
@@ -105,7 +107,9 @@ export function createImageSharingRoutes(imageSharingManager: ImageSharingManage
     }
     const image = imageSharingManager.getImage(id);
     c.header("Content-Type", image?.mimeType || "image/png");
-    return c.body(content);
+    c.header("X-Content-Type-Options", "nosniff");
+    c.header("Content-Security-Policy", "sandbox; default-src 'none'; style-src 'unsafe-inline'");
+    return c.body(new Uint8Array(content));
   });
 
   // Delete image

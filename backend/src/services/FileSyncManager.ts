@@ -13,7 +13,7 @@ import {
   FileSyncStats,
   SessionAttachedFile,
   ConflictResolution,
-} from "../types/fileSync";
+} from "../types/fileSync.js";
 
 export class FileSyncManager extends EventEmitter {
   private folders: Map<string, SyncedFolder> = new Map();
@@ -120,6 +120,30 @@ export class FileSyncManager extends EventEmitter {
   }
 
   // File Management
+  private resolveLocalPath(folderPath: string, remotePath: string): string {
+    if (typeof remotePath !== "string" || !remotePath || path.posix.isAbsolute(remotePath)
+      || path.win32.isAbsolute(remotePath) || /[:\x00]/.test(remotePath)) {
+      throw new Error("File path must be relative to the synced folder");
+    }
+    const parts = remotePath.replace(/\\/g, "/").split("/");
+    if (parts.some((part) => !part || part === "." || part === ".." || /[.\s]$/.test(part))) {
+      throw new Error("File path must stay within the synced folder");
+    }
+    if (process.platform === "win32" && parts.some((part) => /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:[ .]|$)/i.test(part))) {
+      throw new Error("File path must not reference a Windows device");
+    }
+    let current = path.resolve(folderPath);
+    for (const part of ["", ...parts]) {
+      current = path.join(current, part);
+      try {
+        if (fs.lstatSync(current).isSymbolicLink()) throw new Error("File path must not follow symbolic links");
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      }
+    }
+    return current;
+  }
+
   async addFile(
     folderId: string,
     remotePath: string,
@@ -130,7 +154,7 @@ export class FileSyncManager extends EventEmitter {
 
     const id = randomUUID();
     const filename = path.basename(remotePath);
-    const localPath = path.join(folder.localPath, remotePath);
+    const localPath = this.resolveLocalPath(folder.localPath, remotePath);
     const localDir = path.dirname(localPath);
 
     // Ensure directory exists
@@ -177,6 +201,9 @@ export class FileSyncManager extends EventEmitter {
   updateFile(id: string, content: Buffer | string): SyncedFile {
     const file = this.files.get(id);
     if (!file) throw new Error("File not found");
+    const syncedFolder = this.folders.get(file.folderId);
+    if (!syncedFolder) throw new Error("Folder not found");
+    this.resolveLocalPath(syncedFolder.localPath, file.remotePath);
 
     const buffer = typeof content === "string" ? Buffer.from(content) : content;
     const newChecksum = this.calculateChecksum(buffer);
@@ -211,6 +238,9 @@ export class FileSyncManager extends EventEmitter {
   deleteFile(id: string): boolean {
     const file = this.files.get(id);
     if (!file) return false;
+    const syncedFolder = this.folders.get(file.folderId);
+    if (!syncedFolder) return false;
+    this.resolveLocalPath(syncedFolder.localPath, file.remotePath);
 
     // Update folder stats
     const folder = this.folders.get(file.folderId);
@@ -247,6 +277,9 @@ export class FileSyncManager extends EventEmitter {
   getFileContent(id: string): Buffer | null {
     const file = this.files.get(id);
     if (!file || !fs.existsSync(file.localPath)) return null;
+    const folder = this.folders.get(file.folderId);
+    if (!folder) return null;
+    this.resolveLocalPath(folder.localPath, file.remotePath);
     return fs.readFileSync(file.localPath);
   }
 
@@ -277,7 +310,7 @@ export class FileSyncManager extends EventEmitter {
     if (!file) throw new Error("File not found");
 
     const versions = this.versions.get(fileId) || [];
-    const versionNum = versions.length + 1;
+    const versionNum = (versions.at(-1)?.version || 0) + 1;
     const id = randomUUID();
 
     const versionDir = path.join(this.syncBasePath, ".versions", fileId);
@@ -422,6 +455,7 @@ export class FileSyncManager extends EventEmitter {
 
     const watcher = chokidar.watch(folder.localPath, {
       ignoreInitial: true,
+      followSymlinks: false,
       ignored: folder.patterns.exclude.map((p) => `**/${p}`),
     });
 
@@ -431,8 +465,13 @@ export class FileSyncManager extends EventEmitter {
         (f) => f.folderId === folderId && f.localPath === filePath
       );
       if (file) {
-        const content = fs.readFileSync(filePath);
-        this.updateFile(file.id, content);
+        try {
+          this.resolveLocalPath(folder.localPath, relativePath);
+          const content = fs.readFileSync(filePath);
+          this.updateFile(file.id, content);
+        } catch (error) {
+          console.error("File sync rejected an unsafe or unreadable path:", (error as Error).message);
+        }
       }
     });
 
@@ -442,8 +481,13 @@ export class FileSyncManager extends EventEmitter {
         (f) => f.folderId === folderId && f.localPath === filePath
       );
       if (!existing) {
-        const content = fs.readFileSync(filePath);
-        await this.addFile(folderId, relativePath, content);
+        try {
+          this.resolveLocalPath(folder.localPath, relativePath);
+          const content = fs.readFileSync(filePath);
+          await this.addFile(folderId, relativePath, content);
+        } catch (error) {
+          console.error("File sync rejected an unsafe or unreadable path:", (error as Error).message);
+        }
       }
     });
 
@@ -452,7 +496,11 @@ export class FileSyncManager extends EventEmitter {
         (f) => f.folderId === folderId && f.localPath === filePath
       );
       if (file) {
-        this.deleteFile(file.id);
+        try {
+          this.deleteFile(file.id);
+        } catch (error) {
+          console.error("File sync rejected an unsafe or unreadable path:", (error as Error).message);
+        }
       }
     });
 

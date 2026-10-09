@@ -10,7 +10,7 @@ import {
   EmailAttachment,
   EmailStats,
   defaultEmailTemplates,
-} from "../types/email";
+} from "../types/email.js";
 
 export class EmailManager extends EventEmitter {
   private config: EmailConfig = {

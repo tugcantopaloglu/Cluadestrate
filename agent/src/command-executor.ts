@@ -172,7 +172,7 @@ export class CommandExecutor {
       return { success: false, error: "Command required" };
     }
 
-    logger.info(`Executing shell command: ${command}`);
+    logger.info("Executing shell command");
 
     try {
       const { stdout, stderr } = await execAsync(command, {

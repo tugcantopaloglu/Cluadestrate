@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-import { WorkflowManager } from "../services/WorkflowManager";
-import type { CreateWorkflowInput } from "../types/workflow";
+import { WorkflowManager } from "../services/WorkflowManager.js";
+import type { CreateWorkflowInput } from "../types/workflow.js";
 
 export function createWorkflowRoutes(workflowManager: WorkflowManager) {
   const app = new Hono();

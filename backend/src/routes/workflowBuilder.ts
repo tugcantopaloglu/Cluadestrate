@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { WorkflowBuilderManager } from "../services/WorkflowBuilderManager";
+import { WorkflowBuilderManager } from "../services/WorkflowBuilderManager.js";
 
 export function createWorkflowBuilderRoutes(workflowBuilderManager: WorkflowBuilderManager) {
   const router = new Hono();

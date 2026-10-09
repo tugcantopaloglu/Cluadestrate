@@ -9,7 +9,7 @@ import {
   ValidationError,
   ValidateCanvasResponse,
   NodeConfig,
-} from "../types/workflowBuilder";
+} from "../types/workflowBuilder.js";
 
 export class WorkflowBuilderManager extends EventEmitter {
   private canvases: Map<string, WorkflowCanvas> = new Map();
@@ -434,7 +434,7 @@ export class WorkflowBuilderManager extends EventEmitter {
           message: `Node "${node.data.label}" has no incoming connections`,
           severity: "warning",
         });
-      } else if (!hasOutgoing && node.type !== "end") {
+      } else if (!hasOutgoing) {
         warnings.push({
           nodeId: node.id,
           message: `Node "${node.data.label}" has no outgoing connections`,

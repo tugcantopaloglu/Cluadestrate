@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-import { AlertManager } from "../services/AlertManager";
-import type { CreateAlertRuleInput } from "../types/alert";
+import { AlertManager } from "../services/AlertManager.js";
+import type { CreateAlertRuleInput } from "../types/alert.js";
 
 export function createAlertRoutes(alertManager: AlertManager) {
   const app = new Hono();

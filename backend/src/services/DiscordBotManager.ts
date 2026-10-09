@@ -10,7 +10,7 @@ import {
   DiscordInteraction,
   DiscordEmbed,
   BotStats,
-} from "../types/bots";
+} from "../types/bots.js";
 
 export class DiscordBotManager extends EventEmitter {
   private config: DiscordBotConfig = {

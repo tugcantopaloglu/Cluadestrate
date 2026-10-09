@@ -11,14 +11,14 @@ import {
   InstallScriptConfig,
   AgentCommand,
   AgentStats,
-} from "../types/mcpHostAgent";
+} from "../types/mcpHostAgent.js";
 
 export class MCPHostAgentManager extends EventEmitter {
   private hosts: Map<string, MCPHostAgent> = new Map();
   private discoveredHosts: Map<string, DiscoveredHost> = new Map();
   private commands: Map<string, AgentCommand> = new Map();
   private discoverySocket: dgram.Socket | null = null;
-  private heartbeatInterval: NodeJS.Timer | null = null;
+  private heartbeatInterval: NodeJS.Timeout | null = null;
 
   private discoveryConfig: NetworkDiscoveryConfig = {
     enabled: true,

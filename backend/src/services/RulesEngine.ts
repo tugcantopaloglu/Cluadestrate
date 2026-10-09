@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
-import type { RulesConfig, HardRule, CreateHardRuleRequest } from "../types";
+import type { RulesConfig, HardRule, CreateHardRuleRequest } from "../types/index.js";
 
 export class RulesEngine {
   private config: RulesConfig = {

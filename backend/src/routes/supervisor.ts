@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { SupervisorManager } from "../services/SupervisorManager";
+import { SupervisorManager } from "../services/SupervisorManager.js";
 
 export function createSupervisorRoutes(supervisorManager: SupervisorManager) {
   const router = new Hono();

@@ -2,6 +2,10 @@
 
 A standalone agent that runs on remote machines (Windows, Linux, Raspberry Pi, macOS) to host MCP servers and connect to the central Cluadestrate orchestrator.
 
+The agent uses Socket.IO's `/agent` namespace. The central backend listens on loopback and has no multi-user dashboard authorization. Use an authenticated tunnel for a remote agent and explicitly configure a random `AGENT_AUTH_TOKENS` secret on the backend and the matching `server.authToken` on the agent. There is no built-in development token. See the [root setup instructions](../README.md).
+
+The central operator can request shell execution, log reads, screenshots, and reboot. Only grant access to trusted operators. `update` and `sync_files` currently return placeholder responses. Configuration fields for a local agent API and certificate files are not wired to a listening agent API; TLS is selected by the `wss://` or `https://` server URL.
+
 ## Features
 
 - **Cross-Platform**: Runs on Windows, Linux (x64, ARM64), and macOS
@@ -16,13 +20,13 @@ A standalone agent that runs on remote machines (Windows, Linux, Raspberry Pi, m
 
 ### 1. Download
 
-Download the appropriate binary for your platform from the releases page, or build from source.
+Build from source using the instructions below. Prebuilt release availability and target-platform packaging are not guaranteed.
 
 ### 2. Initialize Configuration
 
 ```bash
 # Create config file
-./cluadestrate-agent init --server ws://your-server:3001 --token your-auth-token
+./cluadestrate-agent init --server ws://127.0.0.1:3001 --token your-auth-token
 ```
 
 ### 3. Edit Configuration
@@ -33,7 +37,7 @@ Edit the generated `config.yaml` to add your MCP servers:
 hostName: "my-raspberry-pi"
 
 server:
-  url: "ws://192.168.1.100:3001"
+  url: "ws://127.0.0.1:3001"
   authToken: "your-secret-token"
 
 mcpServers:
@@ -82,7 +86,11 @@ scripts\build-windows.bat
 
 ### Build Outputs
 
-After building, executables will be in `dist/bin/`:
+The existing `pkg` toolchain has high-severity npm advisories without a compatible fix. Native packaging has not been validated on all target platforms. The regular TypeScript build does not execute `pkg`.
+
+`npm run build` emits JavaScript to `dist/`. Run it with `npm start -- start --config config.yaml`.
+
+The individual `build:windows`, `build:linux`, `build:linux-arm`, and `build:macos` package scripts emit executables directly under `dist/`. `npm run build:all` runs those four targets. The optional `node scripts/build-all.js` script attempts five targets under `dist/bin/`:
 
 - `cluadestrate-agent-win-x64.exe` - Windows x64
 - `cluadestrate-agent-linux-x64` - Linux x64
@@ -150,13 +158,13 @@ sudo ./cluadestrate-agent uninstall
 
 1. Download the ARM64 binary:
    ```bash
-   wget https://your-server/downloads/cluadestrate-agent-linux-arm64 -O cluadestrate-agent
+   cp dist/bin/cluadestrate-agent-linux-arm64 cluadestrate-agent
    chmod +x cluadestrate-agent
    ```
 
 2. Initialize configuration:
    ```bash
-   ./cluadestrate-agent init --server ws://your-central-server:3001 --token your-token
+   ./cluadestrate-agent init --server ws://127.0.0.1:3001 --token your-token
    ```
 
 3. Install as service:
@@ -185,7 +193,7 @@ server:
 
 # Agent capabilities
 agent:
-  port: 3002                   # Local port for agent API
+  port: 3002                   # Reserved configuration; no local API is started
   autoStart: true
   capabilities:
     - mcp_hosting              # Host MCP servers

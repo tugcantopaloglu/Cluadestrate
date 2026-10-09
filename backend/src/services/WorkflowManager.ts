@@ -1,6 +1,6 @@
 import { EventEmitter } from "events";
-import { Storage, generateId } from "./Storage";
-import { SessionManager } from "./SessionManager";
+import { Storage, generateId } from "./Storage.js";
+import { SessionManager } from "./SessionManager.js";
 import type {
   Workflow,
   WorkflowStep,
@@ -8,7 +8,7 @@ import type {
   StepStatus,
   CreateWorkflowInput,
   WorkflowRunResult,
-} from "../types/workflow";
+} from "../types/workflow.js";
 
 export class WorkflowManager extends EventEmitter {
   private storage: Storage<Workflow>;

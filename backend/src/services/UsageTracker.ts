@@ -1,4 +1,4 @@
-import type { UsageRecord, UsageSummary, TokenUsage, UsageAlert } from "../types";
+import type { UsageRecord, UsageSummary, TokenUsage, UsageAlert } from "../types/index.js";
 import { v4 as uuidv4 } from "uuid";
 import { EventEmitter } from "events";
 
@@ -141,6 +141,7 @@ export class UsageTracker extends EventEmitter {
   }
 
   private async checkAlerts(): Promise<void> {
+    if (this.dailyLimit <= 0) return;
     const summary = await this.getSummary();
     const usagePercent = (summary.totalTokens / this.dailyLimit) * 100;
 

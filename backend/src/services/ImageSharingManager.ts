@@ -10,7 +10,7 @@ import {
   RemoteScreenshotRequest,
   ImageProcessingOptions,
   ImageStats,
-} from "../types/imageSharing";
+} from "../types/imageSharing.js";
 
 export class ImageSharingManager extends EventEmitter {
   private images: Map<string, SessionImage> = new Map();

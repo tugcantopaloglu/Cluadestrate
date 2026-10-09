@@ -1,5 +1,5 @@
 import { EventEmitter } from "events";
-import { Storage, generateId } from "./Storage";
+import { Storage, generateId } from "./Storage.js";
 import type {
   Integration,
   IntegrationDefinition,
@@ -7,11 +7,11 @@ import type {
   IntegrationCategory,
   ConnectIntegrationInput,
   IntegrationStats,
-  INTEGRATION_DEFINITIONS,
-} from "../types/integration";
+} from "../types/integration.js";
+import { INTEGRATION_DEFINITIONS } from "../types/integration.js";
 
 // Re-export definitions
-export { INTEGRATION_DEFINITIONS } from "../types/integration";
+export { INTEGRATION_DEFINITIONS } from "../types/integration.js";
 
 export class IntegrationManager extends EventEmitter {
   private storage: Storage<Integration>;
@@ -23,7 +23,6 @@ export class IntegrationManager extends EventEmitter {
 
   // Get all available integration definitions
   getDefinitions(): IntegrationDefinition[] {
-    const { INTEGRATION_DEFINITIONS } = require("../types/integration");
     return INTEGRATION_DEFINITIONS;
   }
 

@@ -1,12 +1,12 @@
 import { EventEmitter } from "events";
-import { Storage, generateId } from "./Storage";
+import { Storage, generateId } from "./Storage.js";
 import type {
   Notification,
   NotificationPreferences,
   CreateNotificationInput,
   NotificationStats,
   NotificationType,
-} from "../types/notification";
+} from "../types/notification.js";
 
 const DEFAULT_PREFERENCES: NotificationPreferences = {
   sessionUpdates: true,

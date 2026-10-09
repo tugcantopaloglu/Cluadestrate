@@ -6,7 +6,7 @@ import type {
   MCPServerStatus,
   CreateMCPServerRequest,
   LogEntry,
-} from "../types";
+} from "../types/index.js";
 
 interface ActiveMCP {
   server: MCPServer;

@@ -56,6 +56,11 @@ next-env.d.ts
 *.sqlite
 *.sqlite3
 data/*.db
+backend/data/
+/config.yaml
+/config.yml
+agent/config.yaml
+agent/config.yml
 
 # Redis
 dump.rdb

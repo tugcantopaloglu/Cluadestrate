@@ -8,7 +8,7 @@ import {
   TelegramUpdate,
   TelegramKeyboard,
   BotStats,
-} from "../types/bots";
+} from "../types/bots.js";
 
 export class TelegramBotManager extends EventEmitter {
   private config: TelegramBotConfig = {
@@ -36,7 +36,7 @@ export class TelegramBotManager extends EventEmitter {
     { command: "help", description: "Show available commands" },
   ];
 
-  private pollingInterval: NodeJS.Timer | null = null;
+  private pollingInterval: NodeJS.Timeout | null = null;
   private lastUpdateId = 0;
 
   constructor() {

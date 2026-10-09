@@ -11,7 +11,7 @@ import type {
   BackgroundTask,
   ModelId,
   ThinkingMode,
-} from "../types";
+} from "../types/index.js";
 
 interface ActiveSession {
   session: Session;
@@ -146,7 +146,7 @@ export class SessionManager extends EventEmitter {
     const args = this.buildClaudeArgs(active.session);
 
     try {
-      const claudeProcess = spawn("claude", args, {
+      const claudeProcess = spawn(process.env.CLAUDE_BINARY_PATH || "claude", args, {
         cwd: active.session.workingDirectory,
         shell: true,
         env: {

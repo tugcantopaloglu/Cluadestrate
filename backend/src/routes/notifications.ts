@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-import { NotificationManager } from "../services/NotificationManager";
-import type { CreateNotificationInput, NotificationPreferences } from "../types/notification";
+import { NotificationManager } from "../services/NotificationManager.js";
+import type { CreateNotificationInput, NotificationPreferences } from "../types/notification.js";
 
 export function createNotificationRoutes(notificationManager: NotificationManager) {
   const app = new Hono();

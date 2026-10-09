@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { FileSyncManager } from "../services/FileSyncManager";
+import { FileSyncManager } from "../services/FileSyncManager.js";
 
 export function createFileSyncRoutes(fileSyncManager: FileSyncManager) {
   const router = new Hono();
@@ -101,7 +101,10 @@ export function createFileSyncRoutes(fileSyncManager: FileSyncManager) {
     }
     const file = fileSyncManager.getFile(id);
     c.header("Content-Type", file?.mimeType || "application/octet-stream");
-    return c.body(content);
+    c.header("Content-Disposition", "attachment");
+    c.header("X-Content-Type-Options", "nosniff");
+    c.header("Content-Security-Policy", "sandbox; default-src 'none'");
+    return c.body(new Uint8Array(content));
   });
 
   // Add file

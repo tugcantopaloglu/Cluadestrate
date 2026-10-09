@@ -8,7 +8,7 @@ import {
   SlackCommand,
   SlackMessage,
   BotStats,
-} from "../types/bots";
+} from "../types/bots.js";
 
 export class SlackBotManager extends EventEmitter {
   private config: SlackBotConfig = {

@@ -1,11 +1,11 @@
 import { Hono } from "hono";
-import type { CreateHardRuleRequest } from "../types";
+import type { CreateHardRuleRequest } from "../types/index.js";
 
 let rulesEngine: any = null;
 
 const getRulesEngine = async () => {
   if (!rulesEngine) {
-    const module = await import("../index");
+    const module = await import("../index.js");
     rulesEngine = module.rulesEngine;
   }
   return rulesEngine;

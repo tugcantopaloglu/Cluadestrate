@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { AutoUpdateManager } from "../services/AutoUpdateManager";
+import { AutoUpdateManager } from "../services/AutoUpdateManager.js";
 
 export function createAutoUpdateRoutes(autoUpdateManager: AutoUpdateManager) {
   const router = new Hono();

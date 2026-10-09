@@ -10,14 +10,14 @@ import {
   UpdateResult,
   UpdateHistory,
   RollbackInfo,
-} from "../types/autoUpdate";
+} from "../types/autoUpdate.js";
 
 export class AutoUpdateManager extends EventEmitter {
   private hostVersions: Map<string, HostVersion> = new Map();
   private operations: Map<string, UpdateOperation> = new Map();
   private history: UpdateHistory[] = [];
   private rollbacks: Map<string, RollbackInfo> = new Map();
-  private checkInterval: NodeJS.Timer | null = null;
+  private checkInterval: NodeJS.Timeout | null = null;
   private latestVersion: UpdateInfo | null = null;
 
   private settings: UpdateSettings = {

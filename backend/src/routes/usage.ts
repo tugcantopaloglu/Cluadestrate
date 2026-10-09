@@ -4,7 +4,7 @@ let usageTracker: any = null;
 
 const getUsageTracker = async () => {
   if (!usageTracker) {
-    const module = await import("../index");
+    const module = await import("../index.js");
     usageTracker = module.usageTracker;
   }
   return usageTracker;

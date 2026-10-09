@@ -1,36 +1,29 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+This is Cluadestrate's Next.js dashboard. Application routes are in `src/app`, API helpers in `src/lib/api.ts`, and the browser Socket.IO connection in `src/lib/socket.ts`.
 
 ## Getting Started
 
-First, run the development server:
+Install and start the backend using the [root instructions](../README.md). From this directory, install the dashboard and start it on port 3000:
 
 ```bash
+npm ci
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Copy `.env.example` to `.env.local` to configure API or socket URLs. Both default to `http://localhost:3001`; the socket also falls back to `NEXT_PUBLIC_API_URL`. Public environment variables are embedded in browser code, so they must not contain secrets.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-## Learn More
+## Build and checks
 
-To learn more about Next.js, take a look at the following resources:
+```sh
+npm run build
+npm start
+npm run lint
+npm audit
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+The build downloads the Google fonts configured in `src/app/layout.tsx`. Serve the dashboard locally: the backend supports only loopback access and the two default port-3000 browser origins. A frontend deployment by itself does not provide an authenticated public orchestration service.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Current validation: production bundling succeeds, but TypeScript reports 76 existing API-contract diagnostics across eight pages, so `npm run build` exits unsuccessfully. The initial full lint check reported 389 errors and 68 warnings in existing source. The five remaining dependency advisories are in the development ESLint toolchain; npm's suggested downgrade to an older framework configuration has not been applied. These limits need resolution before claiming a production frontend build or deployment.

@@ -1,7 +1,7 @@
 import { Hono } from "hono";
-import { SlackBotManager } from "../services/SlackBotManager";
-import { DiscordBotManager } from "../services/DiscordBotManager";
-import { TelegramBotManager } from "../services/TelegramBotManager";
+import { SlackBotManager } from "../services/SlackBotManager.js";
+import { DiscordBotManager } from "../services/DiscordBotManager.js";
+import { TelegramBotManager } from "../services/TelegramBotManager.js";
 
 export function createBotRoutes(
   slackBot: SlackBotManager,

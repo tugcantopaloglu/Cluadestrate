@@ -1,6 +1,6 @@
 import { Hono } from "hono";
-import { MCPHostAgentManager } from "../services/MCPHostAgentManager";
-import { AgentConnectionManager } from "../services/AgentConnectionManager";
+import { MCPHostAgentManager } from "../services/MCPHostAgentManager.js";
+import { AgentConnectionManager } from "../services/AgentConnectionManager.js";
 
 export function createMCPHostAgentRoutes(
   mcpHostAgentManager: MCPHostAgentManager,
