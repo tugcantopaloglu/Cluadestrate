@@ -159,7 +159,7 @@ export default function RulesPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {rulesConfig?.hardRules?.map((rule: any, index: number) => (
+                  {rulesConfig?.hardRules?.map((rule, index: number) => (
                     <div
                       key={rule.id}
                       className="flex items-start justify-between p-4 border rounded-lg bg-red-500/5 border-red-500/20"
@@ -277,7 +277,7 @@ export default function RulesPage() {
                     <SelectValue placeholder="Choose a session..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {sessions.map((session: any) => (
+                    {sessions.map((session) => (
                       <SelectItem key={session.id} value={session.id}>
                         {session.name}
                       </SelectItem>

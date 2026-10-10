@@ -1,6 +1,7 @@
 import { Hono } from "hono";
+import type { UsageTracker } from "../services/UsageTracker.js";
 
-let usageTracker: any = null;
+let usageTracker: UsageTracker | null = null;
 
 const getUsageTracker = async () => {
   if (!usageTracker) {
@@ -96,7 +97,7 @@ usageRouter.get("/export", async (c) => {
         // Add session breakdown if available
         if (day.sessions) {
           for (const session of day.sessions) {
-            rows.push(`${day.date},${session.sessionId},${session.sessionName},${session.inputTokens},${session.outputTokens},${session.totalTokens},${session.cost.toFixed(4)}`);
+            rows.push(`${day.date},${session.sessionId},${session.sessionId},${session.inputTokens},${session.outputTokens},${session.totalTokens},${session.cost.toFixed(4)}`);
           }
         }
       }
@@ -125,8 +126,8 @@ usageRouter.get("/export", async (c) => {
     exportDate: new Date().toISOString(),
     period: {
       days,
-      startDate: history.length > 0 ? history[history.length - 1].date : null,
-      endDate: history.length > 0 ? history[0].date : null,
+      startDate: history.length > 0 ? history[0].date : null,
+      endDate: history.length > 0 ? history[history.length - 1].date : null,
     },
     summary: {
       totalTokens: summary.totalTokens,
@@ -143,9 +144,9 @@ usageRouter.get("/export/sessions", async (c) => {
   const format = c.req.query("format") || "json";
   const summary = await tracker.getSummary();
 
-  const sessions = Object.entries(summary.bySession || {}).map(([sessionId, data]: [string, any]) => ({
+  const sessions = Object.entries(summary.bySession).map(([sessionId, data]) => ({
     sessionId,
-    sessionName: data.name || sessionId,
+    sessionName: sessionId,
     totalTokens: data.tokens || 0,
     inputTokens: data.inputTokens || 0,
     outputTokens: data.outputTokens || 0,

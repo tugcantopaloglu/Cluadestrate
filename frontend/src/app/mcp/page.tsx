@@ -49,7 +49,7 @@ export default function MCPPage() {
     queryFn: mcpApi.list,
   });
 
-  const { data: logs = [] } = useQuery({
+  const { data: logs = { logs: [] } } = useQuery({
     queryKey: ["mcp-logs", selectedMCP],
     queryFn: () => (selectedMCP ? mcpApi.getLogs(selectedMCP) : Promise.resolve({ logs: [] })),
     enabled: !!selectedMCP,
@@ -140,7 +140,7 @@ export default function MCPPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {servers.map((server: any) => (
+                {servers.map((server) => (
                   <div
                     key={server.id}
                     className={`p-4 border rounded-lg cursor-pointer transition-colors ${
@@ -226,16 +226,16 @@ export default function MCPPage() {
             <CardTitle>Server Logs</CardTitle>
             <CardDescription>
               {selectedMCP
-                ? `Logs for ${servers.find((s: any) => s.id === selectedMCP)?.name || "selected server"}`
+                ? `Logs for ${servers.find((s) => s.id === selectedMCP)?.name || "selected server"}`
                 : "Select a server to view logs"}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <ScrollArea className="h-[400px] font-mono text-sm">
               {selectedMCP ? (
-                (logs as any).logs?.length > 0 ? (
+                logs.logs?.length > 0 ? (
                   <div className="space-y-1">
-                    {(logs as any).logs.map((log: any, i: number) => (
+                    {logs.logs.map((log, i: number) => (
                       <div
                         key={i}
                         className={`px-2 py-1 rounded ${

@@ -133,7 +133,7 @@ export default function KnowledgePage() {
     },
   });
 
-  const displayItems = searchQuery.length > 2 && searchResults ? searchResults : knowledge;
+  const displayItems = searchQuery.length > 2 && searchResults ? searchResults.map((result) => result.item) : knowledge;
 
   const addTag = () => {
     if (tagInput.trim() && !newItem.tags.includes(tagInput.trim())) {
@@ -204,9 +204,7 @@ export default function KnowledgePage() {
           <CardHeader className="pb-2">
             <CardDescription>Last Updated</CardDescription>
             <CardTitle className="text-lg">
-              {stats?.lastUpdated
-                ? new Date(stats.lastUpdated).toLocaleDateString()
-                : "Never"}
+              {knowledge.length ? new Date(knowledge.reduce((latest, item) => item.updatedAt > latest ? item.updatedAt : latest, knowledge[0].updatedAt)).toLocaleDateString() : "Never"}
             </CardTitle>
           </CardHeader>
         </Card>
@@ -240,7 +238,7 @@ export default function KnowledgePage() {
           <CardContent>
             <ScrollArea className="h-[400px]">
               <div className="space-y-3">
-                {displayItems.map((item: any) => {
+                {displayItems.map((item) => {
                   const Icon = typeIcons[item.type as keyof typeof typeIcons] || FileText;
                   return (
                     <div
@@ -277,7 +275,7 @@ export default function KnowledgePage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            {item.sourcePath && (
+                            {item.filePath && (
                               <DropdownMenuItem onClick={() => syncMutation.mutate(item.id)}>
                                 <RefreshCw className="w-4 h-4 mr-2" />
                                 Sync from Source

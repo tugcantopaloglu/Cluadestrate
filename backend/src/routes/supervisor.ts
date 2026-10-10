@@ -34,6 +34,41 @@ export function createSupervisorRoutes(supervisorManager: SupervisorManager) {
     return c.json(supervisor, 201);
   });
 
+  // Executions
+  router.get("/executions", (c) => {
+    const supervisorId = c.req.query("supervisorId");
+    return c.json(supervisorManager.listExecutions(supervisorId));
+  });
+
+  router.get("/executions/:id", (c) => {
+    const { id } = c.req.param();
+    const execution = supervisorManager.getExecution(id);
+    if (!execution) {
+      return c.json({ error: "Execution not found" }, 404);
+    }
+    return c.json(execution);
+  });
+
+  router.post("/:id/execute", async (c) => {
+    const { id } = c.req.param();
+    const { task } = await c.req.json();
+    try {
+      const execution = await supervisorManager.execute(id, task);
+      return c.json(execution);
+    } catch (error) {
+      return c.json({ error: (error as Error).message }, 400);
+    }
+  });
+
+  router.post("/executions/:id/stop", (c) => {
+    const { id } = c.req.param();
+    const success = supervisorManager.stopExecution(id);
+    if (!success) {
+      return c.json({ error: "Cannot stop execution" }, 400);
+    }
+    return c.json({ success: true });
+  });
+
   // Supervisor CRUD
   router.get("/", (c) => {
     return c.json(supervisorManager.listSupervisors());
@@ -99,41 +134,6 @@ export function createSupervisorRoutes(supervisorManager: SupervisorManager) {
     const success = supervisorManager.removeWorker(supervisorId, workerId);
     if (!success) {
       return c.json({ error: "Worker not found" }, 404);
-    }
-    return c.json({ success: true });
-  });
-
-  // Executions
-  router.get("/executions", (c) => {
-    const supervisorId = c.req.query("supervisorId");
-    return c.json(supervisorManager.listExecutions(supervisorId));
-  });
-
-  router.get("/executions/:id", (c) => {
-    const { id } = c.req.param();
-    const execution = supervisorManager.getExecution(id);
-    if (!execution) {
-      return c.json({ error: "Execution not found" }, 404);
-    }
-    return c.json(execution);
-  });
-
-  router.post("/:id/execute", async (c) => {
-    const { id } = c.req.param();
-    const { task } = await c.req.json();
-    try {
-      const execution = await supervisorManager.execute(id, task);
-      return c.json(execution);
-    } catch (error) {
-      return c.json({ error: (error as Error).message }, 400);
-    }
-  });
-
-  router.post("/executions/:id/stop", (c) => {
-    const { id } = c.req.param();
-    const success = supervisorManager.stopExecution(id);
-    if (!success) {
-      return c.json({ error: "Cannot stop execution" }, 400);
     }
     return c.json({ success: true });
   });

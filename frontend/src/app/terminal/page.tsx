@@ -1,5 +1,7 @@
 "use client";
 
+import type { Terminal } from "@xterm/xterm";
+import type { FitAddon } from "@xterm/addon-fit";
 import { useEffect, useRef, useState } from "react";
 import { Plus, X, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,8 +29,8 @@ export default function TerminalPage() {
   const [activeTab, setActiveTab] = useState("1");
   const [isFullscreen, setIsFullscreen] = useState(false);
   const terminalRef = useRef<HTMLDivElement>(null);
-  const xtermRef = useRef<any>(null);
-  const fitAddonRef = useRef<any>(null);
+  const xtermRef = useRef<Terminal | null>(null);
+  const fitAddonRef = useRef<FitAddon | null>(null);
 
   useEffect(() => {
     // Dynamic import for xterm to avoid SSR issues

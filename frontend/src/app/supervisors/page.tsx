@@ -1,5 +1,7 @@
 "use client";
 
+import type { ApiRequests } from "@/types/api";
+
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -72,11 +74,11 @@ const strategies = [
 ];
 
 const workerRoles = [
-  { value: "executor", label: "Executor", description: "Runs commands and tasks" },
+  { value: "coder", label: "Coder", description: "Runs commands and tasks" },
   { value: "reviewer", label: "Reviewer", description: "Reviews and validates output" },
   { value: "planner", label: "Planner", description: "Plans and breaks down tasks" },
-  { value: "researcher", label: "Researcher", description: "Gathers information" },
-  { value: "coordinator", label: "Coordinator", description: "Coordinates other workers" },
+  { value: "tester", label: "Tester", description: "Gathers information" },
+  { value: "custom", label: "Custom", description: "Coordinates other workers" },
 ];
 
 export default function SupervisorsPage() {
@@ -90,7 +92,7 @@ export default function SupervisorsPage() {
   const [addWorkerOpen, setAddWorkerOpen] = useState(false);
   const [newWorker, setNewWorker] = useState({
     name: "",
-    role: "executor",
+    role: "coder",
     sessionId: "",
   });
 
@@ -114,7 +116,7 @@ export default function SupervisorsPage() {
 
   const { data: workers = [] } = useQuery({
     queryKey: ["supervisor-workers", selectedSupervisor],
-    queryFn: () => (selectedSupervisor ? supervisorsApi.listWorkers(selectedSupervisor) : []),
+    queryFn: () => (selectedSupervisor ? supervisorsApi.get(selectedSupervisor).then((item) => item.workers) : []),
     enabled: !!selectedSupervisor,
   });
 
@@ -126,11 +128,11 @@ export default function SupervisorsPage() {
 
   const { data: templates = [] } = useQuery({
     queryKey: ["supervisor-templates"],
-    queryFn: supervisorsApi.listTemplates,
+    queryFn: supervisorsApi.getTemplates,
   });
 
   const createMutation = useMutation({
-    mutationFn: supervisorsApi.create,
+    mutationFn: (data: typeof newSupervisor) => supervisorsApi.create({ name: data.name, model: "claude-sonnet-4", strategy: data.strategy as ApiRequests["POST /api/supervisors"]["strategy"], systemPrompt: data.description, workers: [] }),
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["supervisors"] });
       queryClient.invalidateQueries({ queryKey: ["supervisors-stats"] });
@@ -152,12 +154,12 @@ export default function SupervisorsPage() {
   });
 
   const addWorkerMutation = useMutation({
-    mutationFn: ({ supervisorId, data }: { supervisorId: string; data: any }) =>
+    mutationFn: ({ supervisorId, data }: { supervisorId: string; data: Parameters<typeof supervisorsApi.addWorker>[1] }) =>
       supervisorsApi.addWorker(supervisorId, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["supervisor-workers", selectedSupervisor] });
       setAddWorkerOpen(false);
-      setNewWorker({ name: "", role: "executor", sessionId: "" });
+      setNewWorker({ name: "", role: "coder", sessionId: "" });
       toast.success("Worker added");
     },
   });
@@ -173,7 +175,7 @@ export default function SupervisorsPage() {
 
   const startExecutionMutation = useMutation({
     mutationFn: ({ supervisorId, task }: { supervisorId: string; task: string }) =>
-      supervisorsApi.startExecution(supervisorId, { task }),
+      supervisorsApi.execute(supervisorId, task),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["supervisor-executions", selectedSupervisor] });
       queryClient.invalidateQueries({ queryKey: ["supervisors-stats"] });
@@ -182,6 +184,11 @@ export default function SupervisorsPage() {
   });
 
   const isLoading = statsLoading || supervisorsLoading;
+
+  const updateSettingsMutation = useMutation({
+    mutationFn: ({ id, updates }: { id: string; updates: Parameters<typeof supervisorsApi.update>[1] }) => supervisorsApi.update(id, updates),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["supervisor", selectedSupervisor] }),
+  });
 
   return (
     <div className="space-y-6">
@@ -268,31 +275,31 @@ export default function SupervisorsPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Total Supervisors</CardDescription>
-            <CardTitle className="text-3xl">{stats?.totalSupervisors || 0}</CardTitle>
+            <CardTitle className="text-3xl">{supervisors.length || 0}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Active</CardDescription>
-            <CardTitle className="text-3xl text-green-500">{stats?.activeSupervisors || 0}</CardTitle>
+            <CardDescription>Configured</CardDescription>
+            <CardTitle className="text-3xl text-green-500">{supervisors.length || 0}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Total Workers</CardDescription>
-            <CardTitle className="text-3xl">{stats?.totalWorkers || 0}</CardTitle>
+            <CardTitle className="text-3xl">{supervisors.reduce((total, item) => total + item.workers.length, 0) || 0}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Executions Today</CardDescription>
-            <CardTitle className="text-3xl">{stats?.executionsToday || 0}</CardTitle>
+            <CardTitle className="text-3xl">{executions.filter((item) => new Date(item.startedAt).toDateString() === new Date().toDateString()).length || 0}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Success Rate</CardDescription>
-            <CardTitle className="text-3xl">{stats?.successRate?.toFixed(0) || 0}%</CardTitle>
+            <CardTitle className="text-3xl">{((stats?.successRate || 0) * 100).toFixed(0)}%</CardTitle>
           </CardHeader>
         </Card>
       </div>
@@ -315,7 +322,7 @@ export default function SupervisorsPage() {
               </Card>
             ) : (
               <div className="space-y-2">
-                {supervisors.map((s: any) => {
+                {supervisors.map((s) => {
                   const strategy = strategies.find((st) => st.value === s.strategy);
                   const StrategyIcon = strategy?.icon || Network;
 
@@ -342,14 +349,14 @@ export default function SupervisorsPage() {
                           </div>
                           <Badge
                             variant={
-                              s.status === "active"
+                              true
                                 ? "default"
-                                : s.status === "running"
+                                : false
                                 ? "secondary"
                                 : "outline"
                             }
                           >
-                            {s.status}
+                            {"configured"}
                           </Badge>
                         </div>
                       </CardContent>
@@ -362,7 +369,7 @@ export default function SupervisorsPage() {
             {/* Templates */}
             <h3 className="text-lg font-medium mt-6">Templates</h3>
             <div className="space-y-2">
-              {templates.map((t: any) => (
+              {templates.map((t) => (
                 <Card key={t.id} className="cursor-pointer hover:border-primary/50 transition-colors">
                   <CardContent className="p-4">
                     <p className="font-medium text-sm">{t.name}</p>
@@ -380,7 +387,7 @@ export default function SupervisorsPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <h3 className="text-xl font-semibold">{supervisor.name}</h3>
-                    <p className="text-sm text-muted-foreground">{supervisor.description}</p>
+                    <p className="text-sm text-muted-foreground">{supervisor.systemPrompt}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button
@@ -462,7 +469,7 @@ export default function SupervisorsPage() {
                             </p>
                           </div>
                           <div className="space-y-2">
-                            <Label>Session ID (optional)</Label>
+                            <Label>System Prompt</Label>
                             <Input
                               value={newWorker.sessionId}
                               onChange={(e) => setNewWorker({ ...newWorker, sessionId: e.target.value })}
@@ -478,7 +485,7 @@ export default function SupervisorsPage() {
                             onClick={() =>
                               addWorkerMutation.mutate({
                                 supervisorId: selectedSupervisor,
-                                data: newWorker,
+                                data: { name: newWorker.name, role: newWorker.role as Parameters<typeof supervisorsApi.addWorker>[1]["role"], model: "claude-sonnet-4", systemPrompt: newWorker.sessionId, enabled: true, priority: 0, capabilities: [] },
                               })
                             }
                             disabled={!newWorker.name || addWorkerMutation.isPending}
@@ -499,18 +506,16 @@ export default function SupervisorsPage() {
                     </Card>
                   ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {workers.map((worker: any) => (
+                      {workers.map((worker) => (
                         <Card key={worker.id}>
                           <CardContent className="p-4">
                             <div className="flex items-center justify-between mb-3">
                               <div className="flex items-center gap-2">
                                 <div className={`p-2 rounded-lg ${
-                                  worker.status === "idle" ? "bg-green-500/20" :
-                                  worker.status === "busy" ? "bg-yellow-500/20" : "bg-gray-500/20"
+                                  worker.enabled ? "bg-green-500/20" : "bg-gray-500/20"
                                 }`}>
                                   <User className={`w-4 h-4 ${
-                                    worker.status === "idle" ? "text-green-500" :
-                                    worker.status === "busy" ? "text-yellow-500" : "text-gray-500"
+                                    worker.enabled ? "text-green-500" : "text-gray-500"
                                   }`} />
                                 </div>
                                 <div>
@@ -534,13 +539,13 @@ export default function SupervisorsPage() {
                             <div className="grid grid-cols-2 gap-2 text-sm">
                               <div>
                                 <p className="text-muted-foreground">Status</p>
-                                <Badge variant={worker.status === "idle" ? "default" : "secondary"}>
-                                  {worker.status}
+                                <Badge variant={worker.enabled ? "default" : "secondary"}>
+                                  {worker.enabled ? "enabled" : "disabled"}
                                 </Badge>
                               </div>
                               <div>
                                 <p className="text-muted-foreground">Tasks</p>
-                                <p>{worker.tasksCompleted || 0}</p>
+                                <p>{executions.reduce((total, item) => total + item.workerExecutions.filter((run) => run.workerId === worker.id && run.status === "completed").length, 0)}</p>
                               </div>
                             </div>
                           </CardContent>
@@ -573,7 +578,7 @@ export default function SupervisorsPage() {
                               </TableCell>
                             </TableRow>
                           ) : (
-                            executions.map((exec: any) => (
+                            executions.map((exec) => (
                               <TableRow key={exec.id}>
                                 <TableCell className="max-w-[200px] truncate">
                                   {exec.task}
@@ -583,7 +588,7 @@ export default function SupervisorsPage() {
                                     variant={
                                       exec.status === "completed"
                                         ? "default"
-                                        : exec.status === "running"
+                                        : ["planning", "executing", "aggregating"].includes(exec.status)
                                         ? "secondary"
                                         : exec.status === "failed"
                                         ? "destructive"
@@ -591,13 +596,13 @@ export default function SupervisorsPage() {
                                     }
                                   >
                                     {exec.status === "completed" && <CheckCircle className="w-3 h-3 mr-1" />}
-                                    {exec.status === "running" && <Activity className="w-3 h-3 mr-1 animate-pulse" />}
+                                    {["planning", "executing", "aggregating"].includes(exec.status) && <Activity className="w-3 h-3 mr-1 animate-pulse" />}
                                     {exec.status === "failed" && <XCircle className="w-3 h-3 mr-1" />}
                                     {exec.status}
                                   </Badge>
                                 </TableCell>
                                 <TableCell>
-                                  {exec.duration ? `${exec.duration}ms` : "-"}
+                                  {exec.metrics.totalDuration ? `${exec.metrics.totalDuration}ms` : "-"}
                                 </TableCell>
                                 <TableCell className="text-sm text-muted-foreground">
                                   {new Date(exec.startedAt).toLocaleString()}
@@ -636,27 +641,38 @@ export default function SupervisorsPage() {
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label>Max Retries</Label>
+                        <Label>Max Iterations</Label>
                         <Input
                           type="number"
-                          defaultValue={supervisor.maxRetries || 3}
+                          min="1"
+                          max="100"
+                          defaultValue={supervisor.settings.maxIterations || 3}
+                          onBlur={(event) => {
+                            const value = event.target.valueAsNumber;
+                            if (Number.isInteger(value) && value >= 1 && value <= 100) updateSettingsMutation.mutate({ id: supervisor.id, updates: { settings: { ...supervisor.settings, maxIterations: value } } });
+                          }}
                         />
                       </div>
                       <div className="space-y-2">
                         <Label>Timeout (ms)</Label>
                         <Input
                           type="number"
-                          defaultValue={supervisor.timeout || 300000}
+                          min="1000"
+                          defaultValue={supervisor.settings.timeout || 300000}
+                          onBlur={(event) => {
+                            const value = event.target.valueAsNumber;
+                            if (Number.isInteger(value) && value >= 1000) updateSettingsMutation.mutate({ id: supervisor.id, updates: { settings: { ...supervisor.settings, timeout: value } } });
+                          }}
                         />
                       </div>
                       <div className="flex items-center justify-between">
                         <div>
-                          <Label>Auto-restart failed workers</Label>
+                          <Label>Aggregate Worker Results</Label>
                           <p className="text-sm text-muted-foreground">
-                            Automatically restart workers that fail
+                            Combine worker outputs into one result
                           </p>
                         </div>
-                        <Switch defaultChecked={supervisor.autoRestart} />
+                        <Switch checked={supervisor.settings.aggregationEnabled} onCheckedChange={(checked) => updateSettingsMutation.mutate({ id: supervisor.id, updates: { settings: { ...supervisor.settings, aggregationEnabled: checked } } })} />
                       </div>
                     </CardContent>
                   </Card>

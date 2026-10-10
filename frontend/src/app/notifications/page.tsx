@@ -211,7 +211,7 @@ export default function NotificationsPage() {
               ) : (
                 <ScrollArea className="h-[500px]">
                   <div className="space-y-3">
-                    {notifications.map((notification: any) => {
+                    {notifications.map((notification) => {
                       const Icon = typeIcons[notification.type as keyof typeof typeIcons] || Bell;
                       return (
                         <div
@@ -240,7 +240,7 @@ export default function NotificationsPage() {
                               </p>
                               <div className="flex items-center gap-1 mt-2 text-xs text-muted-foreground">
                                 <Clock className="w-3 h-3" />
-                                {new Date(notification.createdAt).toLocaleString()}
+                                {new Date(notification.timestamp).toLocaleString()}
                               </div>
                             </div>
                           </div>
@@ -291,7 +291,7 @@ export default function NotificationsPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {unreadNotifications.map((notification: any) => {
+                  {unreadNotifications.map((notification) => {
                     const Icon = typeIcons[notification.type as keyof typeof typeIcons] || Bell;
                     return (
                       <div
@@ -312,7 +312,7 @@ export default function NotificationsPage() {
                               {notification.message}
                             </p>
                             <p className="text-xs text-muted-foreground mt-1">
-                              {new Date(notification.createdAt).toLocaleString()}
+                              {new Date(notification.timestamp).toLocaleString()}
                             </p>
                           </div>
                         </div>
@@ -429,9 +429,9 @@ export default function NotificationsPage() {
                       </p>
                     </div>
                     <Switch
-                      checked={preferences?.inApp !== false}
+                      checked={preferences?.deliveryMethods.inApp !== false}
                       onCheckedChange={(checked) =>
-                        updatePreferencesMutation.mutate({ inApp: checked })
+                        updatePreferencesMutation.mutate({ deliveryMethods: { ...(preferences?.deliveryMethods || { inApp: true, browser: false, email: false }), inApp: checked } })
                       }
                     />
                   </div>
@@ -443,9 +443,9 @@ export default function NotificationsPage() {
                       </p>
                     </div>
                     <Switch
-                      checked={preferences?.browser === true}
+                      checked={preferences?.deliveryMethods.browser === true}
                       onCheckedChange={(checked) =>
-                        updatePreferencesMutation.mutate({ browser: checked })
+                        updatePreferencesMutation.mutate({ deliveryMethods: { ...(preferences?.deliveryMethods || { inApp: true, browser: false, email: false }), browser: checked } })
                       }
                     />
                   </div>
@@ -457,9 +457,9 @@ export default function NotificationsPage() {
                       </p>
                     </div>
                     <Switch
-                      checked={preferences?.email === true}
+                      checked={preferences?.deliveryMethods.email === true}
                       onCheckedChange={(checked) =>
-                        updatePreferencesMutation.mutate({ email: checked })
+                        updatePreferencesMutation.mutate({ deliveryMethods: { ...(preferences?.deliveryMethods || { inApp: true, browser: false, email: false }), email: checked } })
                       }
                     />
                   </div>

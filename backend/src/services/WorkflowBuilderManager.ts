@@ -227,6 +227,20 @@ export class WorkflowBuilderManager extends EventEmitter {
     return this.canvases.get(id);
   }
 
+  listCanvases(): WorkflowCanvas[] {
+    return [...this.canvases.values()];
+  }
+
+  getStats() {
+    const canvases = this.listCanvases();
+    return {
+      totalCanvases: canvases.length,
+      totalNodes: canvases.reduce((total, canvas) => total + canvas.nodes.length, 0),
+      totalEdges: canvases.reduce((total, canvas) => total + canvas.edges.length, 0),
+      validCanvases: canvases.filter((canvas) => this.validateCanvas(canvas).valid).length,
+    };
+  }
+
   getCanvasByWorkflow(workflowId: string): WorkflowCanvas | undefined {
     return Array.from(this.canvases.values()).find((c) => c.workflowId === workflowId);
   }
@@ -445,6 +459,7 @@ export class WorkflowBuilderManager extends EventEmitter {
 
     // Validate node configs
     for (const node of canvas.nodes) {
+      if (node.type === "start" || node.type === "end") continue;
       const nodeErrors = this.validateNodeConfig(node);
       errors.push(...nodeErrors);
     }

@@ -8,7 +8,7 @@
     "build": "tsc",
     "start": "node --env-file-if-exists=.env dist/index.js",
     "test": "node --import tsx --test test/*.test.ts",
-    "test:smoke": "node --test test/startup-smoke.mjs"
+    "test:smoke": "node --test test/*smoke.mjs"
   },
   "keywords": [],
   "author": "",

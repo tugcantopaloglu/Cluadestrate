@@ -1,5 +1,7 @@
 "use client";
 
+import type { ApiResponses } from "@/types/api";
+
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -65,7 +67,7 @@ const categoryLabels: Record<string, string> = {
 
 export default function IntegrationsPage() {
   const [configureOpen, setConfigureOpen] = useState(false);
-  const [selectedDefinition, setSelectedDefinition] = useState<any | null>(null);
+  const [selectedDefinition, setSelectedDefinition] = useState<ApiResponses["GET /api/integrations/definitions"][number] | null>(null);
   const [configValues, setConfigValues] = useState<Record<string, string>>({});
   const [testResult, setTestResult] = useState<{ success: boolean; message?: string } | null>(null);
 
@@ -117,7 +119,7 @@ export default function IntegrationsPage() {
     onSuccess: (result) => {
       setTestResult(result);
     },
-    onError: (error: any) => {
+    onError: (error) => {
       setTestResult({ success: false, message: error.message });
     },
   });
@@ -130,7 +132,7 @@ export default function IntegrationsPage() {
     },
   });
 
-  const handleConfigure = (definition: any) => {
+  const handleConfigure = (definition: ApiResponses["GET /api/integrations/definitions"][number]) => {
     setSelectedDefinition(definition);
     setConfigValues({});
     setTestResult(null);
@@ -156,10 +158,10 @@ export default function IntegrationsPage() {
   };
 
   const getConnectedIntegration = (definitionId: string) => {
-    return connected.find((c: any) => c.integrationId === definitionId);
+    return connected.find((c) => c.id === definitionId);
   };
 
-  const groupedDefinitions = definitions.reduce((acc: Record<string, any[]>, def: any) => {
+  const groupedDefinitions = definitions.reduce((acc: Record<string, ApiResponses["GET /api/integrations/definitions"]>, def) => {
     const category = def.category || "other";
     if (!acc[category]) acc[category] = [];
     acc[category].push(def);
@@ -186,7 +188,7 @@ export default function IntegrationsPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Total Available</CardDescription>
-            <CardTitle className="text-3xl">{stats?.totalAvailable || definitions.length}</CardTitle>
+            <CardTitle className="text-3xl">{definitions.length || definitions.length}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
@@ -198,13 +200,13 @@ export default function IntegrationsPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Active</CardDescription>
-            <CardTitle className="text-3xl text-green-500">{stats?.active || 0}</CardTitle>
+            <CardTitle className="text-3xl text-green-500">{stats?.connected || 0}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Errors</CardDescription>
-            <CardTitle className="text-3xl text-red-500">{stats?.errors || 0}</CardTitle>
+            <CardTitle className="text-3xl text-red-500">{stats?.error || 0}</CardTitle>
           </CardHeader>
         </Card>
       </div>
@@ -242,7 +244,7 @@ export default function IntegrationsPage() {
                   {categoryLabels[category] || category}
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {(defs as any[]).map((definition) => (
+                  {defs.map((definition) => (
                     <IntegrationCard
                       key={definition.id}
                       definition={definition}
@@ -266,7 +268,7 @@ export default function IntegrationsPage() {
           {Object.entries(groupedDefinitions).map(([category, defs]) => (
             <TabsContent key={category} value={category}>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {(defs as any[]).map((definition) => (
+                {defs.map((definition) => (
                   <IntegrationCard
                     key={definition.id}
                     definition={definition}
@@ -308,7 +310,7 @@ export default function IntegrationsPage() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {selectedDefinition?.configFields?.map((field: any) => (
+            {selectedDefinition?.configFields?.map((field) => (
               <div key={field.name} className="space-y-2">
                 <Label>{field.label}</Label>
                 <Input
@@ -319,9 +321,7 @@ export default function IntegrationsPage() {
                     setConfigValues({ ...configValues, [field.name]: e.target.value })
                   }
                 />
-                {field.description && (
-                  <p className="text-xs text-muted-foreground">{field.description}</p>
-                )}
+
               </div>
             ))}
             {testResult && (
@@ -367,8 +367,8 @@ function IntegrationCard({
   onDisconnect,
   onSync,
 }: {
-  definition: any;
-  connectedIntegration?: any;
+  definition: ApiResponses["GET /api/integrations/definitions"][number];
+  connectedIntegration?: ApiResponses["GET /api/integrations/connected"][number];
   onConfigure: () => void;
   onDisconnect: () => void;
   onSync: () => void;
@@ -408,7 +408,7 @@ function IntegrationCard({
         <div className="flex items-center justify-between">
           {isConnected ? (
             <div className="flex items-center gap-2">
-              {status === "active" && (
+              {status === "connected" && (
                 <>
                   <CheckCircle className="w-4 h-4 text-green-500" />
                   <span className="text-sm text-green-500">Connected</span>

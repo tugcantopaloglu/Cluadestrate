@@ -76,12 +76,8 @@ export default function MCPHostsPage() {
     name: "",
     hostname: "",
     port: "3002",
-    apiKey: "",
-  });
-  const [scriptConfig, setScriptConfig] = useState({
-    platform: "linux",
-    installPath: "/opt/cluadestrate-agent",
-    autoStart: true,
+    version: "",
+    platform: "linux" as "windows" | "macos" | "linux",
   });
 
   const queryClient = useQueryClient();
@@ -125,12 +121,12 @@ export default function MCPHostsPage() {
   });
 
   const registerHostMutation = useMutation({
-    mutationFn: mcpHostsApi.registerHost,
+    mutationFn: (data: typeof newHost) => mcpHostsApi.registerHost({ hostName: data.name, platform: data.platform, version: data.version || "unknown", capabilities: [], network: { ipAddress: data.hostname, port: Number(data.port) || 3002, protocol: "websocket" }, security: { tlsEnabled: false, authMethod: "token", authorizedClients: [] } }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["mcp-hosts"] });
       queryClient.invalidateQueries({ queryKey: ["mcp-hosts-stats"] });
       setAddHostOpen(false);
-      setNewHost({ name: "", hostname: "", port: "3002", apiKey: "" });
+      setNewHost({ name: "", hostname: "", port: "3002", version: "", platform: "linux" });
       toast.success("Host registered");
     },
   });
@@ -191,7 +187,7 @@ export default function MCPHostsPage() {
   const screenshotMutation = useMutation({
     mutationFn: mcpHostsApi.captureScreenshot,
     onSuccess: (result) => {
-      toast.success(`Screenshot captured: ${result.filename}`);
+      toast.success("filename" in result ? `Screenshot captured: ${result.filename}` : `Screenshot requested: ${result.commandId}`);
     },
   });
 
@@ -202,13 +198,6 @@ export default function MCPHostsPage() {
     },
   });
 
-  const generateScriptMutation = useMutation({
-    mutationFn: mcpHostsApi.generateInstallScript,
-    onSuccess: (script) => {
-      navigator.clipboard.writeText(script);
-      toast.success("Install script copied to clipboard");
-    },
-  });
 
   const isLoading = statsLoading || hostsLoading;
 
@@ -266,13 +255,20 @@ export default function MCPHostsPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>API Key (optional)</Label>
+                  <Label>Agent Version (optional)</Label>
                   <Input
-                    type="password"
-                    value={newHost.apiKey}
-                    onChange={(e) => setNewHost({ ...newHost, apiKey: e.target.value })}
-                    placeholder="API key for authentication"
+                    type="text"
+                    value={newHost.version}
+                    onChange={(e) => setNewHost({ ...newHost, version: e.target.value })}
+                    placeholder="Agent version"
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label>Platform</Label>
+                  <Select value={newHost.platform} onValueChange={(value) => setNewHost({ ...newHost, platform: value as typeof newHost.platform })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="linux">Linux</SelectItem><SelectItem value="windows">Windows</SelectItem><SelectItem value="macos">macOS</SelectItem></SelectContent>
+                  </Select>
                 </div>
               </div>
               <DialogFooter>
@@ -363,7 +359,7 @@ export default function MCPHostsPage() {
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="space-y-2">
-                  {hosts.map((host: any) => (
+                  {hosts.map((host) => (
                     <Card
                       key={host.id}
                       className={`cursor-pointer transition-colors ${
@@ -384,9 +380,9 @@ export default function MCPHostsPage() {
                               )}
                             </div>
                             <div>
-                              <p className="font-medium">{host.name}</p>
+                              <p className="font-medium">{host.hostName}</p>
                               <p className="text-xs text-muted-foreground">
-                                {host.hostname}:{host.port}
+                                {host.network.ipAddress}:{host.network.port}
                               </p>
                             </div>
                           </div>
@@ -405,9 +401,9 @@ export default function MCPHostsPage() {
                       <CardHeader>
                         <div className="flex items-center justify-between">
                           <div>
-                            <CardTitle>{selectedHostData.name}</CardTitle>
+                            <CardTitle>{selectedHostData.hostName}</CardTitle>
                             <CardDescription>
-                              {selectedHostData.hostname}:{selectedHostData.port}
+                              {selectedHostData.network.ipAddress}:{selectedHostData.network.port}
                             </CardDescription>
                           </div>
                           <div className="flex items-center gap-2">
@@ -467,9 +463,9 @@ export default function MCPHostsPage() {
                                     <Cpu className="w-4 h-4 text-muted-foreground" />
                                     <span>CPU</span>
                                   </div>
-                                  <span>{selectedHostData.resources.cpu}%</span>
+                                  <span>{selectedHostData.resources.cpuPercent}%</span>
                                 </div>
-                                <Progress value={selectedHostData.resources.cpu} />
+                                <Progress value={selectedHostData.resources.cpuPercent} />
                               </div>
                               <div className="space-y-2">
                                 <div className="flex items-center justify-between text-sm">
@@ -477,9 +473,9 @@ export default function MCPHostsPage() {
                                     <MemoryStick className="w-4 h-4 text-muted-foreground" />
                                     <span>Memory</span>
                                   </div>
-                                  <span>{selectedHostData.resources.memory}%</span>
+                                  <span>{selectedHostData.resources.memoryPercent}%</span>
                                 </div>
-                                <Progress value={selectedHostData.resources.memory} />
+                                <Progress value={selectedHostData.resources.memoryPercent} />
                               </div>
                               <div className="space-y-2">
                                 <div className="flex items-center justify-between text-sm">
@@ -487,9 +483,9 @@ export default function MCPHostsPage() {
                                     <HardDrive className="w-4 h-4 text-muted-foreground" />
                                     <span>Disk</span>
                                   </div>
-                                  <span>{selectedHostData.resources.disk}%</span>
+                                  <span>{selectedHostData.resources.diskPercent}%</span>
                                 </div>
-                                <Progress value={selectedHostData.resources.disk} />
+                                <Progress value={selectedHostData.resources.diskPercent} />
                               </div>
                             </div>
                           </div>
@@ -510,7 +506,7 @@ export default function MCPHostsPage() {
                                 </TableRow>
                               </TableHeader>
                               <TableBody>
-                                {selectedHostData.mcpServers?.map((server: any) => (
+                                {selectedHostData.mcpServers?.map((server) => (
                                   <TableRow key={server.id}>
                                     <TableCell>{server.name}</TableCell>
                                     <TableCell>
@@ -547,7 +543,7 @@ export default function MCPHostsPage() {
                         <div className="grid grid-cols-2 gap-4 text-sm">
                           <div>
                             <p className="text-muted-foreground">Version</p>
-                            <p className="font-mono">{selectedHostData.agentVersion || "-"}</p>
+                            <p className="font-mono">{selectedHostData.version || "-"}</p>
                           </div>
                           <div>
                             <p className="text-muted-foreground">Platform</p>
@@ -556,8 +552,8 @@ export default function MCPHostsPage() {
                           <div>
                             <p className="text-muted-foreground">Last Heartbeat</p>
                             <p>
-                              {selectedHostData.lastHeartbeat
-                                ? new Date(selectedHostData.lastHeartbeat).toLocaleString()
+                              {selectedHostData.lastSeen
+                                ? new Date(selectedHostData.lastSeen).toLocaleString()
                                 : "-"}
                             </p>
                           </div>
@@ -641,10 +637,10 @@ export default function MCPHostsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {discoveredHosts.map((host: any) => (
+                      {discoveredHosts.map((host) => (
                         <TableRow key={host.id}>
-                          <TableCell>{host.hostname}</TableCell>
-                          <TableCell className="font-mono">{host.ipAddress}</TableCell>
+                          <TableCell>{host.name}</TableCell>
+                          <TableCell className="font-mono">{host.address}</TableCell>
                           <TableCell>{host.port}</TableCell>
                           <TableCell>
                             <Badge variant="outline">{host.discoveryMethod}</Badge>
@@ -690,10 +686,10 @@ export default function MCPHostsPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      commands.map((cmd: any) => (
+                      commands.map((cmd) => (
                         <TableRow key={cmd.id}>
-                          <TableCell>{cmd.hostName}</TableCell>
-                          <TableCell className="font-mono text-sm">{cmd.command}</TableCell>
+                          <TableCell>{hosts.find((host) => host.id === cmd.hostId)?.hostName || cmd.hostId}</TableCell>
+                          <TableCell className="font-mono text-sm">{cmd.type}</TableCell>
                           <TableCell>
                             <Badge
                               variant={
@@ -708,7 +704,7 @@ export default function MCPHostsPage() {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
-                            {new Date(cmd.timestamp).toLocaleString()}
+                            {new Date(cmd.sentAt || cmd.completedAt || "").toLocaleString()}
                           </TableCell>
                         </TableRow>
                       ))
@@ -721,59 +717,10 @@ export default function MCPHostsPage() {
         </Tabs>
       )}
 
-      {/* Install Script Dialog */}
       <Dialog open={installScriptOpen} onOpenChange={setInstallScriptOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Generate Install Script</DialogTitle>
-            <DialogDescription>
-              Generate an installation script for the MCP host agent
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Platform</Label>
-              <Select
-                value={scriptConfig.platform}
-                onValueChange={(value) => setScriptConfig({ ...scriptConfig, platform: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="linux">Linux</SelectItem>
-                  <SelectItem value="macos">macOS</SelectItem>
-                  <SelectItem value="windows">Windows</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Install Path</Label>
-              <Input
-                value={scriptConfig.installPath}
-                onChange={(e) => setScriptConfig({ ...scriptConfig, installPath: e.target.value })}
-              />
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Auto Start on Boot</Label>
-                <p className="text-sm text-muted-foreground">Configure as a system service</p>
-              </div>
-              <Switch
-                checked={scriptConfig.autoStart}
-                onCheckedChange={(checked) => setScriptConfig({ ...scriptConfig, autoStart: checked })}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setInstallScriptOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => generateScriptMutation.mutate(scriptConfig)}>
-              <Download className="w-4 h-4 mr-2" />
-              Generate & Copy
-            </Button>
-          </DialogFooter>
+        <DialogContent><DialogHeader><DialogTitle>Agent Installation</DialogTitle><DialogDescription>Generated download scripts are unavailable. Build the agent from this repository.</DialogDescription></DialogHeader>
+          <div className="space-y-3"><p>Run npm ci and npm run build in the agent directory, then node dist/index.js init. Configure server.url and server.authToken in the generated agent configuration before starting it.</p><p>Use the agent README for platform and tunnel instructions. Automatic service installation remains a prototype.</p></div>
+          <DialogFooter><Button onClick={() => setInstallScriptOpen(false)}>Close</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -792,14 +739,14 @@ export default function MCPHostsPage() {
                 <Label>Enable mDNS</Label>
                 <p className="text-sm text-muted-foreground">Discover via multicast DNS</p>
               </div>
-              <Switch checked={discoveryConfig?.enableMDNS} />
+              <Switch checked={discoveryConfig?.enabled && discoveryConfig.discoveryMethod === "mdns"} />
             </div>
             <div className="flex items-center justify-between">
               <div>
                 <Label>Enable Tailscale</Label>
                 <p className="text-sm text-muted-foreground">Discover via Tailscale network</p>
               </div>
-              <Switch checked={discoveryConfig?.enableTailscale} />
+              <Switch checked={discoveryConfig?.enabled && discoveryConfig.discoveryMethod === "tailscale"} />
             </div>
             <div className="space-y-2">
               <Label>Scan Interval (seconds)</Label>

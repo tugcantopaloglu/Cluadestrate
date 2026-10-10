@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { usageApi } from "@/lib/api";
+import { API_BASE, usageApi } from "@/lib/api";
 
 const COLORS = ["#8884d8", "#82ca9d", "#ffc658", "#ff7300", "#00C49F", "#FFBB28"];
 
@@ -51,7 +51,7 @@ export default function UsagePage() {
 
   // Transform session data for pie chart
   const sessionData = summary?.bySession
-    ? Object.entries(summary.bySession).map(([id, data]: [string, any]) => ({
+    ? Object.entries(summary.bySession).map(([id, data]) => ({
         name: id.slice(0, 8),
         tokens: data.tokens,
         cost: data.cost,
@@ -59,7 +59,7 @@ export default function UsagePage() {
     : [];
 
   const handleExport = async () => {
-    window.open("/api/usage/export?format=csv&days=30", "_blank");
+    window.open(`${API_BASE}/api/usage/export?format=csv&days=30`, "_blank", "noopener,noreferrer");
   };
 
   return (
@@ -88,7 +88,7 @@ export default function UsagePage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {alerts.map((alert: any) => (
+              {alerts.map((alert) => (
                 <div
                   key={alert.id}
                   className={`flex items-center justify-between p-3 rounded-lg ${
@@ -158,7 +158,7 @@ export default function UsagePage() {
             </CardDescription>
             <CardTitle className="text-3xl">
               {(
-                (history.reduce((sum: number, h: any) => sum + h.tokens, 0) /
+                (history.reduce((sum: number, h) => sum + h.tokens, 0) /
                   Math.max(history.length, 1)) /
                 1000
               ).toFixed(1)}

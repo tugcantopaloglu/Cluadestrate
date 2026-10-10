@@ -343,6 +343,7 @@ export class FileSyncManager extends EventEmitter {
     }
 
     this.versions.set(fileId, versions);
+    file.versions = versions;
     return version;
   }
 
@@ -598,6 +599,12 @@ export class FileSyncManager extends EventEmitter {
   }
 
   updateConfig(updates: Partial<FileSyncConfig>): FileSyncConfig {
+    if (updates.maxVersionHistory !== undefined && (!Number.isInteger(updates.maxVersionHistory) || updates.maxVersionHistory < 1 || updates.maxVersionHistory > 1000)) {
+      throw new Error("Version history limit must be an integer between 1 and 1000");
+    }
+    if (updates.syncIntervalMs !== undefined && (!Number.isInteger(updates.syncIntervalMs) || updates.syncIntervalMs < 1000)) {
+      throw new Error("Sync interval must be an integer of at least 1000 milliseconds");
+    }
     this.config = { ...this.config, ...updates };
 
     if (updates.watchForChanges !== undefined) {

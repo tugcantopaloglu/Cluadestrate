@@ -1,0 +1,52 @@
+name: Validate dashboard and agents
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+            frontend/package-lock.json
+            agent/package-lock.json
+      - run: npm ci
+      - run: npm --prefix backend ci
+      - run: npm --prefix frontend ci
+      - run: npm --prefix agent ci
+      - run: npm run build
+      - run: npm --prefix agent run build
+      - run: npm --prefix frontend run lint
+      - run: npm test
+      - run: npm --prefix backend run test:smoke
+      - name: Audit production dependencies
+        run: |
+          npm audit --omit=dev
+          npm --prefix backend audit --omit=dev
+          npm --prefix frontend audit --omit=dev
+          npm --prefix agent audit --omit=dev
+      - name: Report frontend development advisories
+        continue-on-error: true
+        run: npm --prefix frontend audit --json > frontend-development-audit.json
+      - name: Report agent development advisories
+        continue-on-error: true
+        run: npm --prefix agent audit --json > agent-development-audit.json
+      - name: Retain development audit reports
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: development-dependency-audits
+          path: '*-development-audit.json'
+          if-no-files-found: ignore

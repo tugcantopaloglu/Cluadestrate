@@ -190,7 +190,7 @@ export default function WorkflowsPage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {workflows.map((workflow: any) => (
+          {workflows.map((workflow) => (
             <Card key={workflow.id}>
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -266,7 +266,7 @@ export default function WorkflowsPage() {
               <CardContent>
                 {/* Workflow Steps */}
                 <div className="flex items-center gap-2 overflow-x-auto pb-2">
-                  {workflow.steps?.map((step: any, index: number) => (
+                  {workflow.steps?.map((step, index: number) => (
                     <div key={step.id} className="flex items-center">
                       <div
                         className={`flex items-center gap-2 px-4 py-2 rounded-lg border ${

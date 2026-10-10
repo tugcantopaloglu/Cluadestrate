@@ -1,5 +1,7 @@
 "use client";
 
+import type * as Model from "../../../../backend/src/types/index";
+
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -55,18 +57,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { n8nApi } from "@/lib/api";
+import { API_BASE, n8nApi } from "@/lib/api";
 import { toast } from "sonner";
 
 const eventTypes = [
-  { value: "session.started", label: "Session Started" },
-  { value: "session.completed", label: "Session Completed" },
-  { value: "session.error", label: "Session Error" },
-  { value: "workflow.started", label: "Workflow Started" },
-  { value: "workflow.completed", label: "Workflow Completed" },
-  { value: "task.created", label: "Task Created" },
-  { value: "task.completed", label: "Task Completed" },
-  { value: "alert.triggered", label: "Alert Triggered" },
+  { value: "session:started", label: "Session Started" },
+  { value: "session:completed", label: "Session Completed" },
+  { value: "session:error", label: "Session Error" },
+  { value: "workflow:failed", label: "Workflow Failed" },
+  { value: "workflow:completed", label: "Workflow Completed" },
+  { value: "task:created", label: "Task Created" },
+  { value: "task:completed", label: "Task Completed" },
+  { value: "alert:triggered", label: "Alert Triggered" },
 ];
 
 export default function N8nPage() {
@@ -75,7 +77,7 @@ export default function N8nPage() {
   const [newWebhook, setNewWebhook] = useState({
     name: "",
     url: "",
-    eventType: "session.completed",
+    eventType: "session:completed",
   });
 
   const queryClient = useQueryClient();
@@ -95,10 +97,6 @@ export default function N8nPage() {
     queryFn: n8nApi.listWebhooks,
   });
 
-  const { data: executions = [] } = useQuery({
-    queryKey: ["n8n-executions"],
-    queryFn: n8nApi.listExecutions,
-  });
 
   const updateConfigMutation = useMutation({
     mutationFn: n8nApi.updateConfig,
@@ -121,17 +119,17 @@ export default function N8nPage() {
   });
 
   const addWebhookMutation = useMutation({
-    mutationFn: n8nApi.addWebhook,
+    mutationFn: (data: typeof newWebhook) => n8nApi.addWebhook({ webhookUrl: data.url, eventType: data.eventType as Model.N8nEventType }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["n8n-webhooks"] });
       queryClient.invalidateQueries({ queryKey: ["n8n-stats"] });
       setAddWebhookOpen(false);
-      setNewWebhook({ name: "", url: "", eventType: "session.completed" });
+      setNewWebhook({ name: "", url: "", eventType: "session:completed" });
     },
   });
 
   const deleteWebhookMutation = useMutation({
-    mutationFn: n8nApi.deleteWebhook,
+    mutationFn: n8nApi.removeWebhook,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["n8n-webhooks"] });
       queryClient.invalidateQueries({ queryKey: ["n8n-stats"] });
@@ -139,23 +137,13 @@ export default function N8nPage() {
   });
 
   const toggleWebhookMutation = useMutation({
-    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
-      n8nApi.updateWebhook(id, { enabled }),
+    mutationFn: ({ id }: { id: string; enabled: boolean }) =>
+      n8nApi.toggleWebhook(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["n8n-webhooks"] });
     },
   });
 
-  const testWebhookMutation = useMutation({
-    mutationFn: n8nApi.testWebhook,
-    onSuccess: (result) => {
-      if (result.success) {
-        toast.success("Webhook test successful!");
-      } else {
-        toast.error("Webhook test failed");
-      }
-    },
-  });
 
   const isLoading = statsLoading || webhooksLoading;
 
@@ -164,8 +152,8 @@ export default function N8nPage() {
     toast.success("Copied to clipboard");
   };
 
-  const incomingWebhookUrl = config?.baseUrl
-    ? `${window.location.origin}/api/n8n/incoming`
+  const incomingWebhookUrl = config?.instanceUrl
+    ? `${API_BASE}/api/n8n/webhook`
     : null;
 
   return (
@@ -182,9 +170,9 @@ export default function N8nPage() {
             <Settings className="w-4 h-4 mr-2" />
             Configure
           </Button>
-          {config?.baseUrl && (
+          {config?.instanceUrl && (
             <Button variant="outline" asChild>
-              <a href={config.baseUrl} target="_blank" rel="noopener noreferrer">
+              <a href={config.instanceUrl} target="_blank" rel="noopener noreferrer">
                 <ExternalLink className="w-4 h-4 mr-2" />
                 Open n8n
               </a>
@@ -194,19 +182,19 @@ export default function N8nPage() {
       </div>
 
       {/* Connection Status */}
-      <Card className={config?.enabled ? "border-green-500/20 bg-green-500/5" : "border-yellow-500/20 bg-yellow-500/5"}>
+      <Card className={config?.status === "connected" ? "border-green-500/20 bg-green-500/5" : "border-yellow-500/20 bg-yellow-500/5"}>
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className={`p-3 rounded-lg ${config?.enabled ? "bg-green-500/20" : "bg-yellow-500/20"}`}>
-                <Workflow className={`w-6 h-6 ${config?.enabled ? "text-green-500" : "text-yellow-500"}`} />
+              <div className={`p-3 rounded-lg ${config?.status === "connected" ? "bg-green-500/20" : "bg-yellow-500/20"}`}>
+                <Workflow className={`w-6 h-6 ${config?.status === "connected" ? "text-green-500" : "text-yellow-500"}`} />
               </div>
               <div>
                 <h3 className="font-semibold">
-                  {config?.enabled ? "Connected to n8n" : "Not Connected"}
+                  {config?.status === "connected" ? "Connected to n8n" : "Not Connected"}
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                  {config?.baseUrl || "Configure your n8n instance URL"}
+                  {config?.instanceUrl || "Configure your n8n instance URL"}
                 </p>
               </div>
             </div>
@@ -215,7 +203,7 @@ export default function N8nPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => testConnectionMutation.mutate()}
-                disabled={!config?.baseUrl || testConnectionMutation.isPending}
+                disabled={!config?.instanceUrl || testConnectionMutation.isPending}
               >
                 {testConnectionMutation.isPending ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -240,19 +228,19 @@ export default function N8nPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Total Executions</CardDescription>
-            <CardTitle className="text-3xl">{stats?.totalExecutions || 0}</CardTitle>
+            <CardTitle className="text-3xl">{(stats?.totalSuccess || 0) + (stats?.totalFailures || 0) || 0}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Successful</CardDescription>
-            <CardTitle className="text-3xl text-green-500">{stats?.successfulExecutions || 0}</CardTitle>
+            <CardTitle className="text-3xl text-green-500">{stats?.totalSuccess || 0}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Failed</CardDescription>
-            <CardTitle className="text-3xl text-red-500">{stats?.failedExecutions || 0}</CardTitle>
+            <CardTitle className="text-3xl text-red-500">{stats?.totalFailures || 0}</CardTitle>
           </CardHeader>
         </Card>
       </div>
@@ -375,7 +363,7 @@ export default function N8nPage() {
               </Card>
             ) : (
               <div className="space-y-4">
-                {webhooks.map((webhook: any) => (
+                {webhooks.map((webhook) => (
                   <Card key={webhook.id}>
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
@@ -384,9 +372,9 @@ export default function N8nPage() {
                             <Webhook className={`w-5 h-5 ${webhook.enabled ? "text-green-500" : "text-gray-500"}`} />
                           </div>
                           <div>
-                            <h3 className="font-medium">{webhook.name}</h3>
+                            <h3 className="font-medium">{webhook.eventType}</h3>
                             <p className="text-sm text-muted-foreground truncate max-w-md">
-                              {webhook.url}
+                              {webhook.webhookUrl}
                             </p>
                           </div>
                         </div>
@@ -398,8 +386,7 @@ export default function N8nPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => testWebhookMutation.mutate(webhook.id)}
-                              disabled={testWebhookMutation.isPending}
+                              disabled title="The backend does not implement individual webhook tests"
                             >
                               <Activity className="w-4 h-4" />
                             </Button>
@@ -419,9 +406,9 @@ export default function N8nPage() {
                           </div>
                         </div>
                       </div>
-                      {webhook.lastTriggeredAt && (
+                      {webhook.lastTriggered && (
                         <p className="text-xs text-muted-foreground mt-2">
-                          Last triggered: {new Date(webhook.lastTriggeredAt).toLocaleString()}
+                          Last triggered: {new Date(webhook.lastTriggered).toLocaleString()}
                         </p>
                       )}
                     </CardContent>
@@ -431,108 +418,25 @@ export default function N8nPage() {
             )}
           </TabsContent>
 
-          <TabsContent value="executions" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Execution History</CardTitle>
-                <CardDescription>Recent webhook executions and their results</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Webhook</TableHead>
-                      <TableHead>Event</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Response</TableHead>
-                      <TableHead>Time</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {executions.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={5} className="text-center text-muted-foreground">
-                          No executions yet
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      executions.map((exec: any) => (
-                        <TableRow key={exec.id}>
-                          <TableCell className="font-medium">{exec.webhookName}</TableCell>
-                          <TableCell>
-                            <Badge variant="outline">{exec.eventType}</Badge>
-                          </TableCell>
-                          <TableCell>
-                            <Badge
-                              variant={exec.success ? "default" : "destructive"}
-                            >
-                              {exec.success ? "Success" : "Failed"}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-sm">
-                            {exec.statusCode || "-"}
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {new Date(exec.timestamp).toLocaleString()}
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
+          <TabsContent value="executions"><Card><CardHeader><CardTitle>Webhook Activity</CardTitle><CardDescription>Per-request history is unavailable. Measured success and failure totals appear in the summary above.</CardDescription></CardHeader></Card></TabsContent>
         </Tabs>
       )}
 
-      {/* Config Dialog */}
       <Dialog open={configOpen} onOpenChange={setConfigOpen}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>n8n Configuration</DialogTitle>
-            <DialogDescription>
-              Configure your n8n instance connection
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Enable Integration</Label>
-                <p className="text-sm text-muted-foreground">Enable n8n webhook integration</p>
-              </div>
-              <Switch
-                checked={config?.enabled}
-                onCheckedChange={(checked) =>
-                  updateConfigMutation.mutate({ enabled: checked })
-                }
-              />
+          <DialogHeader><DialogTitle>n8n Configuration</DialogTitle><DialogDescription>Configure the instance URL. Stored API keys are hidden; leave the key blank to keep it.</DialogDescription></DialogHeader>
+          <form onSubmit={(event) => {
+            event.preventDefault();
+            const values = new FormData(event.currentTarget);
+            updateConfigMutation.mutate({ enabled: values.has("enabled"), instanceUrl: String(values.get("instanceUrl") || ""), apiKey: String(values.get("apiKey") || "") || undefined });
+          }}>
+            <div className="space-y-4 py-4">
+              <Label><input name="enabled" type="checkbox" defaultChecked={config?.enabled} /> Enable Integration</Label>
+              <div><Label htmlFor="n8n-url">n8n Instance URL</Label><Input id="n8n-url" name="instanceUrl" type="url" defaultValue={config?.instanceUrl || ""} placeholder="https://your-n8n-instance.com" /></div>
+              <div><Label htmlFor="n8n-key">API Key</Label><Input id="n8n-key" name="apiKey" type="password" /></div>
             </div>
-            <div className="space-y-2">
-              <Label>n8n Base URL</Label>
-              <Input
-                defaultValue={config?.baseUrl || ""}
-                placeholder="https://your-n8n-instance.com"
-                onChange={(e) =>
-                  updateConfigMutation.mutate({ baseUrl: e.target.value })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>API Key (optional)</Label>
-              <Input
-                type="password"
-                defaultValue={config?.apiKey || ""}
-                placeholder="Your n8n API key"
-                onChange={(e) =>
-                  updateConfigMutation.mutate({ apiKey: e.target.value })
-                }
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button onClick={() => setConfigOpen(false)}>Close</Button>
-          </DialogFooter>
+            <DialogFooter><Button type="button" variant="outline" onClick={() => setConfigOpen(false)}>Close</Button><Button type="submit" disabled={updateConfigMutation.isPending}>Save</Button></DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
     </div>

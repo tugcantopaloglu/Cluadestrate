@@ -166,7 +166,7 @@ export default function GitPage() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {status?.changes?.map((change: any, index: number) => {
+                  {status?.changes?.map((change, index: number) => {
                     const Icon = statusIcons[change.status as keyof typeof statusIcons] || FileEdit;
                     return (
                       <div
@@ -248,7 +248,7 @@ export default function GitPage() {
             <CardContent>
               <ScrollArea className="h-[400px]">
                 <div className="space-y-3">
-                  {log?.map((commit: any, index: number) => (
+                  {log?.map((commit, index: number) => (
                     <div key={index} className="flex items-start gap-3 p-3 border rounded-lg">
                       <GitCommit className="w-5 h-5 mt-0.5 text-muted-foreground" />
                       <div className="flex-1 min-w-0">

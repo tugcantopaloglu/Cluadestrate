@@ -193,7 +193,7 @@ export default function AutomationPage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {automations.map((automation: any) => (
+          {automations.map((automation) => (
             <Card key={automation.id}>
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -271,14 +271,14 @@ export default function AutomationPage() {
                     ) : (
                       <>
                         <Clock className="w-4 h-4" />
-                        <span>Event: {automation.trigger?.eventType}</span>
+                        <span>Event: {automation.trigger?.event}</span>
                       </>
                     )}
                   </div>
                   {automation.lastRunAt && (
                     <span>Last run: {new Date(automation.lastRunAt).toLocaleString()}</span>
                   )}
-                  <span>Runs: {automation.runsCount || 0}</span>
+                  <span>Runs: {automation.totalRuns || 0}</span>
                 </div>
               </CardContent>
             </Card>
@@ -408,7 +408,7 @@ export default function AutomationPage() {
                     <SelectValue placeholder="Select a workflow to run" />
                   </SelectTrigger>
                   <SelectContent>
-                    {workflows.map((wf: any) => (
+                    {workflows.map((wf) => (
                       <SelectItem key={wf.id} value={wf.id}>
                         {wf.name}
                       </SelectItem>

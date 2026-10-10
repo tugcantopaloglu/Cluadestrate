@@ -18,8 +18,13 @@ test("synced files stay inside their folder and reject links to outside data", a
     manager.updateFile(file.id, "second");
     assert.equal(manager.getFileContent(file.id)?.toString(), "second");
     manager.updateConfig({ maxVersionHistory: 2 });
+    for (const maxVersionHistory of [-1, 0, 1.5, NaN, Infinity, null]) {
+      assert.throws(() => manager.updateConfig(JSON.parse(JSON.stringify({ maxVersionHistory }))), /Version history limit/);
+    }
+    assert.equal(manager.getConfig().maxVersionHistory, 2);
     for (const content of ["third", "fourth", "fifth", "sixth"]) manager.updateFile(file.id, content);
     const versions = manager.getVersions(file.id);
+    assert.equal(manager.getFile(file.id)?.versions.length, 2);
     assert.deepEqual(versions.map((version) => version.version), [5, 6]);
     assert.equal(new Set(versions.map((version) => version.storagePath)).size, 2);
     manager.restoreVersion(file.id, versions[0].id);

@@ -215,7 +215,7 @@ export default function ChainsPage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {chains.map((chain: any) => (
+          {chains.map((chain) => (
             <Card key={chain.id}>
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -284,7 +284,7 @@ export default function ChainsPage() {
               <CardContent>
                 {/* Chain Steps */}
                 <div className="flex items-center gap-2 overflow-x-auto pb-2">
-                  {chain.steps?.map((step: any, index: number) => (
+                  {chain.steps?.map((step, index: number) => (
                     <div key={step.id || index} className="flex items-center">
                       <div
                         className={`flex items-center gap-2 px-4 py-2 rounded-lg border ${

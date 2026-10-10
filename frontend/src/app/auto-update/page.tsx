@@ -1,5 +1,7 @@
 "use client";
 
+import type { ApiRequests } from "@/types/api";
+
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -77,10 +79,6 @@ export default function AutoUpdatePage() {
     queryFn: autoUpdateApi.listHosts,
   });
 
-  const { data: schedules = [] } = useQuery({
-    queryKey: ["auto-update-schedules"],
-    queryFn: autoUpdateApi.listSchedules,
-  });
 
   const { data: history = [] } = useQuery({
     queryKey: ["auto-update-history"],
@@ -89,19 +87,20 @@ export default function AutoUpdatePage() {
 
   const { data: latestVersion } = useQuery({
     queryKey: ["auto-update-latest"],
-    queryFn: autoUpdateApi.checkUpdates,
+    queryFn: autoUpdateApi.getLatestVersion,
+    retry: false,
     refetchInterval: 60000,
   });
 
   const checkUpdatesMutation = useMutation({
-    mutationFn: autoUpdateApi.checkUpdates,
+    mutationFn: autoUpdateApi.checkForUpdates,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["auto-update-latest"] });
     },
   });
 
   const updateHostMutation = useMutation({
-    mutationFn: autoUpdateApi.updateHost,
+    mutationFn: (hostId: string) => autoUpdateApi.updateHosts([hostId]),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["auto-update-hosts"] });
       queryClient.invalidateQueries({ queryKey: ["auto-update-stats"] });
@@ -110,7 +109,7 @@ export default function AutoUpdatePage() {
   });
 
   const updateAllMutation = useMutation({
-    mutationFn: autoUpdateApi.updateAll,
+    mutationFn: autoUpdateApi.updateAllHosts,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["auto-update-hosts"] });
       queryClient.invalidateQueries({ queryKey: ["auto-update-stats"] });
@@ -119,8 +118,8 @@ export default function AutoUpdatePage() {
   });
 
   const rollbackMutation = useMutation({
-    mutationFn: ({ hostId, version }: { hostId: string; version: string }) =>
-      autoUpdateApi.rollback(hostId, version),
+    mutationFn: (hostId: string) =>
+      autoUpdateApi.rollbackHost(hostId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["auto-update-hosts"] });
       queryClient.invalidateQueries({ queryKey: ["auto-update-history"] });
@@ -138,7 +137,7 @@ export default function AutoUpdatePage() {
   const isLoading = statsLoading || hostsLoading;
 
   const outdatedHosts = hosts.filter(
-    (h: any) => latestVersion && h.currentVersion !== latestVersion.version
+    (h) => latestVersion && h.claudeVersion !== latestVersion.version
   );
 
   return (
@@ -202,7 +201,7 @@ export default function AutoUpdatePage() {
               <div className="mt-4 p-3 bg-background/50 rounded-lg">
                 <p className="text-sm font-medium mb-1">Changelog:</p>
                 <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                  {latestVersion.changelog}
+                  {latestVersion.changelog.join("\n")}
                 </p>
               </div>
             )}
@@ -239,7 +238,7 @@ export default function AutoUpdatePage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Failed</CardDescription>
-            <CardTitle className="text-3xl text-red-500">{stats?.failed || 0}</CardTitle>
+            <CardTitle className="text-3xl text-red-500">{hosts.filter((host) => host.status === "error").length || 0}</CardTitle>
           </CardHeader>
         </Card>
       </div>
@@ -269,62 +268,56 @@ export default function AutoUpdatePage() {
               </Card>
             ) : (
               <div className="grid gap-4">
-                {hosts.map((host: any) => (
-                  <Card key={host.id}>
+                {hosts.map((host) => (
+                  <Card key={host.hostId}>
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
                           <div className={`p-2 rounded-lg ${
-                            host.status === "online" ? "bg-green-500/20" : "bg-gray-500/20"
+                            host.status === "up_to_date" ? "bg-green-500/20" : "bg-gray-500/20"
                           }`}>
                             <Server className={`w-5 h-5 ${
-                              host.status === "online" ? "text-green-500" : "text-gray-500"
+                              host.status === "up_to_date" ? "text-green-500" : "text-gray-500"
                             }`} />
                           </div>
                           <div>
-                            <h3 className="font-medium">{host.name}</h3>
-                            <p className="text-sm text-muted-foreground">{host.hostname}</p>
+                            <h3 className="font-medium">{host.hostName}</h3>
+                            <p className="text-sm text-muted-foreground">{host.platform}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
                           <div className="text-right">
                             <p className="text-sm">
-                              Version: <span className="font-mono">{host.currentVersion}</span>
+                              Version: <span className="font-mono">{host.claudeVersion}</span>
                             </p>
-                            {latestVersion && host.currentVersion !== latestVersion.version && (
+                            {latestVersion && host.claudeVersion !== latestVersion.version && (
                               <p className="text-xs text-yellow-500">
                                 Update available: {latestVersion.version}
                               </p>
                             )}
                           </div>
-                          {host.updateStatus === "updating" ? (
+                          {host.status === "updating" ? (
                             <div className="w-32">
-                              <Progress value={host.updateProgress || 0} className="h-2" />
-                              <p className="text-xs text-muted-foreground mt-1 text-center">
-                                {host.updateProgress || 0}%
-                              </p>
+                              <p className="text-xs text-muted-foreground">Update in progress</p>
                             </div>
                           ) : (
                             <div className="flex items-center gap-2">
-                              {latestVersion && host.currentVersion !== latestVersion.version && (
+                              {latestVersion && host.claudeVersion !== latestVersion.version && (
                                 <Button
                                   size="sm"
-                                  onClick={() => updateHostMutation.mutate(host.id)}
+                                  onClick={() => updateHostMutation.mutate(host.hostId)}
                                   disabled={updateHostMutation.isPending}
                                 >
                                   <ArrowUpCircle className="w-4 h-4 mr-1" />
                                   Update
                                 </Button>
                               )}
-                              {host.previousVersions?.length > 0 && (
+                              {history.some((item) => item.rollbackAvailable && item.hosts.includes(host.hostId)) && (
                                 <Button
                                   variant="outline"
                                   size="sm"
                                   onClick={() =>
-                                    rollbackMutation.mutate({
-                                      hostId: host.id,
-                                      version: host.previousVersions[0],
-                                    })
+                                    rollbackMutation.mutate(host.hostId)
                                   }
                                 >
                                   <RotateCcw className="w-4 h-4 mr-1" />
@@ -335,17 +328,17 @@ export default function AutoUpdatePage() {
                           )}
                           <Badge
                             variant={
-                              host.updateStatus === "up_to_date"
+                              host.status === "up_to_date"
                                 ? "default"
-                                : host.updateStatus === "updating"
+                                : host.status === "updating"
                                 ? "secondary"
-                                : host.updateStatus === "failed"
+                                : host.status === "error"
                                 ? "destructive"
                                 : "outline"
                             }
                           >
-                            {host.updateStatus === "up_to_date" && <Check className="w-3 h-3 mr-1" />}
-                            {host.updateStatus?.replace(/_/g, " ")}
+                            {host.status === "up_to_date" && <Check className="w-3 h-3 mr-1" />}
+                            {host.status?.replace(/_/g, " ")}
                           </Badge>
                         </div>
                       </div>
@@ -356,56 +349,7 @@ export default function AutoUpdatePage() {
             )}
           </TabsContent>
 
-          <TabsContent value="schedules" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Update Schedules</CardTitle>
-                <CardDescription>Configure automatic update schedules for your hosts</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Name</TableHead>
-                      <TableHead>Schedule</TableHead>
-                      <TableHead>Hosts</TableHead>
-                      <TableHead>Next Run</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {schedules.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={5} className="text-center text-muted-foreground">
-                          No schedules configured
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      schedules.map((schedule: any) => (
-                        <TableRow key={schedule.id}>
-                          <TableCell className="font-medium">{schedule.name}</TableCell>
-                          <TableCell>
-                            <code className="text-xs bg-muted px-2 py-1 rounded">
-                              {schedule.cronExpression}
-                            </code>
-                          </TableCell>
-                          <TableCell>{schedule.hostIds?.length || "All"} hosts</TableCell>
-                          <TableCell className="text-sm text-muted-foreground">
-                            {schedule.nextRun ? new Date(schedule.nextRun).toLocaleString() : "-"}
-                          </TableCell>
-                          <TableCell>
-                            <Badge variant={schedule.enabled ? "default" : "secondary"}>
-                              {schedule.enabled ? "Active" : "Paused"}
-                            </Badge>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
+          <TabsContent value="schedules"><Card><CardHeader><CardTitle>Update Schedule</CardTitle><CardDescription>The backend stores one shared update schedule.</CardDescription></CardHeader><CardContent><p>Mode: {settings?.schedule.mode || "manual"}</p><p>Time: {settings?.schedule.scheduledTime || "Not set"}</p><p>Days: {settings?.schedule.scheduledDays?.join(", ") || "Not set"}</p><p>Timezone: {settings?.schedule.timezone || "UTC"}</p></CardContent></Card></TabsContent>
 
           <TabsContent value="history" className="space-y-4">
             <Card>
@@ -432,9 +376,9 @@ export default function AutoUpdatePage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      history.map((op: any) => (
+                      history.map((op) => (
                         <TableRow key={op.id}>
-                          <TableCell className="font-medium">{op.hostName}</TableCell>
+                          <TableCell className="font-medium">{op.hosts.join(", ")}</TableCell>
                           <TableCell>
                             <code className="text-xs">{op.fromVersion}</code>
                           </TableCell>
@@ -444,16 +388,16 @@ export default function AutoUpdatePage() {
                           <TableCell>
                             <Badge
                               variant={
-                                op.status === "completed"
+                                op.success
                                   ? "default"
-                                  : op.status === "failed"
+                                  : !op.success
                                   ? "destructive"
                                   : "secondary"
                               }
                             >
-                              {op.status === "completed" && <CheckCircle className="w-3 h-3 mr-1" />}
-                              {op.status === "failed" && <XCircle className="w-3 h-3 mr-1" />}
-                              {op.status}
+                              {op.success && <CheckCircle className="w-3 h-3 mr-1" />}
+                              {!op.success && <XCircle className="w-3 h-3 mr-1" />}
+                              {op.success ? "Completed" : "Failed"}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
@@ -486,9 +430,9 @@ export default function AutoUpdatePage() {
                 <p className="text-sm text-muted-foreground">Automatically install updates when available</p>
               </div>
               <Switch
-                checked={settings?.autoUpdate}
+                checked={settings?.schedule.mode === "immediate"}
                 onCheckedChange={(checked) =>
-                  updateSettingsMutation.mutate({ autoUpdate: checked })
+                  updateSettingsMutation.mutate({ schedule: { ...(settings?.schedule || { timezone: "UTC" }), mode: checked ? "immediate" : "manual" } })
                 }
               />
             </div>
@@ -498,9 +442,9 @@ export default function AutoUpdatePage() {
                 <p className="text-sm text-muted-foreground">Periodically check for new versions</p>
               </div>
               <Switch
-                checked={settings?.checkAutomatically}
+                checked={settings?.autoCheck}
                 onCheckedChange={(checked) =>
-                  updateSettingsMutation.mutate({ checkAutomatically: checked })
+                  updateSettingsMutation.mutate({ autoCheck: checked })
                 }
               />
             </div>
@@ -515,20 +459,20 @@ export default function AutoUpdatePage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Update Channel</Label>
+              <Label>Update Mode</Label>
               <Select
-                defaultValue={settings?.channel || "stable"}
+                defaultValue={settings?.schedule.mode || "manual"}
                 onValueChange={(value) =>
-                  updateSettingsMutation.mutate({ channel: value as any })
+                  updateSettingsMutation.mutate({ schedule: { ...(settings?.schedule || { timezone: "UTC" }), mode: value as NonNullable<ApiRequests["PATCH /api/auto-update/settings"]["schedule"]>["mode"] } })
                 }
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="stable">Stable</SelectItem>
-                  <SelectItem value="beta">Beta</SelectItem>
-                  <SelectItem value="nightly">Nightly</SelectItem>
+                  <SelectItem value="manual">Manual</SelectItem>
+                  <SelectItem value="immediate">Immediate</SelectItem>
+                  <SelectItem value="scheduled">Scheduled</SelectItem>
                 </SelectContent>
               </Select>
             </div>

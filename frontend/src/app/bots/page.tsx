@@ -79,7 +79,7 @@ export default function BotsPage() {
   // Slack queries
   const { data: slackStats } = useQuery({
     queryKey: ["slack-stats"],
-    queryFn: botsApi.slack.getStats,
+    queryFn: () => botsApi.getStats().then((stats) => stats.slack),
   });
 
   const { data: slackConfig } = useQuery({
@@ -95,7 +95,7 @@ export default function BotsPage() {
   // Discord queries
   const { data: discordStats } = useQuery({
     queryKey: ["discord-stats"],
-    queryFn: botsApi.discord.getStats,
+    queryFn: () => botsApi.getStats().then((stats) => stats.discord),
   });
 
   const { data: discordConfig } = useQuery({
@@ -111,7 +111,7 @@ export default function BotsPage() {
   // Telegram queries
   const { data: telegramStats } = useQuery({
     queryKey: ["telegram-stats"],
-    queryFn: botsApi.telegram.getStats,
+    queryFn: () => botsApi.getStats().then((stats) => stats.telegram),
   });
 
   const { data: telegramConfig } = useQuery({
@@ -150,7 +150,7 @@ export default function BotsPage() {
   });
 
   const testSlackMutation = useMutation({
-    mutationFn: botsApi.slack.testConnection,
+    mutationFn: botsApi.slack.connect,
     onSuccess: (result) => {
       if (result.success) toast.success("Slack connection successful!");
       else toast.error("Slack connection failed");
@@ -158,7 +158,7 @@ export default function BotsPage() {
   });
 
   const testDiscordMutation = useMutation({
-    mutationFn: botsApi.discord.testConnection,
+    mutationFn: botsApi.discord.connect,
     onSuccess: (result) => {
       if (result.success) toast.success("Discord connection successful!");
       else toast.error("Discord connection failed");
@@ -166,7 +166,7 @@ export default function BotsPage() {
   });
 
   const testTelegramMutation = useMutation({
-    mutationFn: botsApi.telegram.testConnection,
+    mutationFn: botsApi.telegram.connect,
     onSuccess: (result) => {
       if (result.success) toast.success("Telegram connection successful!");
       else toast.error("Telegram connection failed");
@@ -187,7 +187,7 @@ export default function BotsPage() {
       {/* Bot Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* Slack */}
-        <Card className={slackConfig?.enabled ? "border-[#4A154B]/50" : ""}>
+        <Card className={slackConfig?.status === "online" ? "border-[#4A154B]/50" : ""}>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -212,7 +212,7 @@ export default function BotsPage() {
               <div>
                 <p className="text-muted-foreground">Status</p>
                 <p className="font-medium flex items-center gap-1">
-                  {slackConfig?.enabled ? (
+                  {slackConfig?.status === "online" ? (
                     <>
                       <Check className="w-4 h-4 text-green-500" />
                       Connected
@@ -235,7 +235,7 @@ export default function BotsPage() {
               </div>
               <div>
                 <p className="text-muted-foreground">Commands</p>
-                <p className="font-medium">{slackStats?.commandsProcessed || 0}</p>
+                <p className="font-medium">{slackStats?.commandsExecuted || 0}</p>
               </div>
             </div>
             <div className="flex gap-2">
@@ -261,7 +261,7 @@ export default function BotsPage() {
         </Card>
 
         {/* Discord */}
-        <Card className={discordConfig?.enabled ? "border-[#5865F2]/50" : ""}>
+        <Card className={discordConfig?.status === "online" ? "border-[#5865F2]/50" : ""}>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -286,7 +286,7 @@ export default function BotsPage() {
               <div>
                 <p className="text-muted-foreground">Status</p>
                 <p className="font-medium flex items-center gap-1">
-                  {discordConfig?.enabled ? (
+                  {discordConfig?.status === "online" ? (
                     <>
                       <Check className="w-4 h-4 text-green-500" />
                       Connected
@@ -309,7 +309,7 @@ export default function BotsPage() {
               </div>
               <div>
                 <p className="text-muted-foreground">Commands</p>
-                <p className="font-medium">{discordStats?.commandsProcessed || 0}</p>
+                <p className="font-medium">{discordStats?.commandsExecuted || 0}</p>
               </div>
             </div>
             <div className="flex gap-2">
@@ -335,7 +335,7 @@ export default function BotsPage() {
         </Card>
 
         {/* Telegram */}
-        <Card className={telegramConfig?.enabled ? "border-[#0088cc]/50" : ""}>
+        <Card className={telegramConfig?.status === "online" ? "border-[#0088cc]/50" : ""}>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -360,7 +360,7 @@ export default function BotsPage() {
               <div>
                 <p className="text-muted-foreground">Status</p>
                 <p className="font-medium flex items-center gap-1">
-                  {telegramConfig?.enabled ? (
+                  {telegramConfig?.status === "online" ? (
                     <>
                       <Check className="w-4 h-4 text-green-500" />
                       Connected
@@ -383,7 +383,7 @@ export default function BotsPage() {
               </div>
               <div>
                 <p className="text-muted-foreground">Commands</p>
-                <p className="font-medium">{telegramStats?.commandsProcessed || 0}</p>
+                <p className="font-medium">{telegramStats?.commandsExecuted || 0}</p>
               </div>
             </div>
             <div className="flex gap-2">
@@ -448,7 +448,7 @@ export default function BotsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {slackChannels.map((channel: any) => (
+                    {slackChannels.map((channel) => (
                       <TableRow key={channel.id}>
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-2">
@@ -461,7 +461,7 @@ export default function BotsPage() {
                         </TableCell>
                         <TableCell>{channel.memberCount}</TableCell>
                         <TableCell>
-                          <Switch checked={channel.notificationsEnabled} />
+                          <Switch checked={false} />
                         </TableCell>
                       </TableRow>
                     ))}
@@ -494,7 +494,7 @@ export default function BotsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {discordGuilds.map((guild: any) => (
+                    {discordGuilds.map((guild) => (
                       <TableRow key={guild.id}>
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-2">
@@ -503,9 +503,9 @@ export default function BotsPage() {
                           </div>
                         </TableCell>
                         <TableCell>{guild.memberCount}</TableCell>
-                        <TableCell>{guild.channelCount}</TableCell>
+                        <TableCell>{guild.memberCount}</TableCell>
                         <TableCell>
-                          <Switch checked={guild.notificationsEnabled} />
+                          <Switch checked={false} />
                         </TableCell>
                       </TableRow>
                     ))}
@@ -537,19 +537,19 @@ export default function BotsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {telegramChats.map((chat: any) => (
-                      <TableRow key={chat.id}>
+                    {telegramChats.map((chat) => (
+                      <TableRow key={chat.chatId}>
                         <TableCell className="font-medium">
                           <div className="flex items-center gap-2">
                             <MessageSquare className="w-4 h-4 text-muted-foreground" />
-                            {chat.title || chat.username}
+                            {chat.name || chat.username}
                           </div>
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline">{chat.type}</Badge>
                         </TableCell>
                         <TableCell>
-                          <Switch checked={chat.notificationsEnabled} />
+                          <Switch checked={false} />
                         </TableCell>
                       </TableRow>
                     ))}
@@ -561,159 +561,13 @@ export default function BotsPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Slack Config Dialog */}
-      <Dialog open={slackConfigOpen} onOpenChange={setSlackConfigOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <SlackIcon />
-              Slack Configuration
-            </DialogTitle>
-            <DialogDescription>
-              Configure your Slack bot integration
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Bot Token</Label>
-              <Input
-                type="password"
-                defaultValue={slackConfig?.botToken || ""}
-                placeholder="xoxb-..."
-                onChange={(e) =>
-                  updateSlackConfigMutation.mutate({ botToken: e.target.value })
-                }
-              />
-              <p className="text-xs text-muted-foreground">
-                Your Slack Bot User OAuth Token
-              </p>
-            </div>
-            <div className="space-y-2">
-              <Label>Signing Secret</Label>
-              <Input
-                type="password"
-                defaultValue={slackConfig?.signingSecret || ""}
-                placeholder="Your signing secret"
-                onChange={(e) =>
-                  updateSlackConfigMutation.mutate({ signingSecret: e.target.value })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Default Channel</Label>
-              <Input
-                defaultValue={slackConfig?.defaultChannel || ""}
-                placeholder="#general"
-                onChange={(e) =>
-                  updateSlackConfigMutation.mutate({ defaultChannel: e.target.value })
-                }
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button onClick={() => setSlackConfigOpen(false)}>Close</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+<Dialog open={slackConfigOpen} onOpenChange={setSlackConfigOpen}><DialogContent><DialogHeader><DialogTitle>Slack Configuration</DialogTitle><DialogDescription>Stored secrets are hidden. Leave secret fields blank to keep them.</DialogDescription></DialogHeader><form onSubmit={(event) => { event.preventDefault(); const values = new FormData(event.currentTarget); updateSlackConfigMutation.mutate({ botToken: String(values.get("botToken") || "") || undefined, appToken: String(values.get("appToken") || "") || undefined, signingSecret: String(values.get("signingSecret") || "") || undefined }); }}><div className="space-y-4 py-4"><div className="space-y-2"><Label htmlFor="slack-botToken">botToken</Label><Input id="slack-botToken" name="botToken" type="password" defaultValue={""} /></div><div className="space-y-2"><Label htmlFor="slack-appToken">appToken</Label><Input id="slack-appToken" name="appToken" type="password" defaultValue={""} /></div><div className="space-y-2"><Label htmlFor="slack-signingSecret">signingSecret</Label><Input id="slack-signingSecret" name="signingSecret" type="password" defaultValue={""} /></div></div><DialogFooter><Button type="button" variant="outline" onClick={() => setSlackConfigOpen(false)}>Close</Button><Button type="submit" disabled={updateSlackConfigMutation.isPending}>Save</Button></DialogFooter></form></DialogContent></Dialog>
 
-      {/* Discord Config Dialog */}
-      <Dialog open={discordConfigOpen} onOpenChange={setDiscordConfigOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <DiscordIcon />
-              Discord Configuration
-            </DialogTitle>
-            <DialogDescription>
-              Configure your Discord bot integration
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Bot Token</Label>
-              <Input
-                type="password"
-                defaultValue={discordConfig?.botToken || ""}
-                placeholder="Your Discord bot token"
-                onChange={(e) =>
-                  updateDiscordConfigMutation.mutate({ botToken: e.target.value })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>Client ID</Label>
-              <Input
-                defaultValue={discordConfig?.clientId || ""}
-                placeholder="Your Discord application client ID"
-                onChange={(e) =>
-                  updateDiscordConfigMutation.mutate({ clientId: e.target.value })
-                }
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button onClick={() => setDiscordConfigOpen(false)}>Close</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+<Dialog open={discordConfigOpen} onOpenChange={setDiscordConfigOpen}><DialogContent><DialogHeader><DialogTitle>Discord Configuration</DialogTitle><DialogDescription>Stored secrets are hidden. Leave secret fields blank to keep them.</DialogDescription></DialogHeader><form onSubmit={(event) => { event.preventDefault(); const values = new FormData(event.currentTarget); updateDiscordConfigMutation.mutate({ botToken: String(values.get("botToken") || "") || undefined, applicationId: String(values.get("applicationId") || "") || undefined, publicKey: String(values.get("publicKey") || "") || undefined }); }}><div className="space-y-4 py-4"><div className="space-y-2"><Label htmlFor="discord-botToken">botToken</Label><Input id="discord-botToken" name="botToken" type="password" defaultValue={""} /></div><div className="space-y-2"><Label htmlFor="discord-applicationId">applicationId</Label><Input id="discord-applicationId" name="applicationId" type="text" defaultValue={discordConfig?.applicationId || ""} /></div><div className="space-y-2"><Label htmlFor="discord-publicKey">publicKey</Label><Input id="discord-publicKey" name="publicKey" type="password" defaultValue={""} /></div></div><DialogFooter><Button type="button" variant="outline" onClick={() => setDiscordConfigOpen(false)}>Close</Button><Button type="submit" disabled={updateDiscordConfigMutation.isPending}>Save</Button></DialogFooter></form></DialogContent></Dialog>
 
-      {/* Telegram Config Dialog */}
-      <Dialog open={telegramConfigOpen} onOpenChange={setTelegramConfigOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <TelegramIcon />
-              Telegram Configuration
-            </DialogTitle>
-            <DialogDescription>
-              Configure your Telegram bot integration
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Bot Token</Label>
-              <Input
-                type="password"
-                defaultValue={telegramConfig?.botToken || ""}
-                placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
-                onChange={(e) =>
-                  updateTelegramConfigMutation.mutate({ botToken: e.target.value })
-                }
-              />
-              <p className="text-xs text-muted-foreground">
-                Get this from @BotFather on Telegram
-              </p>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Use Webhooks</Label>
-                <p className="text-sm text-muted-foreground">Use webhooks instead of polling</p>
-              </div>
-              <Switch
-                checked={telegramConfig?.useWebhook}
-                onCheckedChange={(checked) =>
-                  updateTelegramConfigMutation.mutate({ useWebhook: checked })
-                }
-              />
-            </div>
-            {telegramConfig?.useWebhook && (
-              <div className="space-y-2">
-                <Label>Webhook URL</Label>
-                <Input
-                  defaultValue={telegramConfig?.webhookUrl || ""}
-                  placeholder="https://your-domain.com/api/bots/telegram/webhook"
-                  onChange={(e) =>
-                    updateTelegramConfigMutation.mutate({ webhookUrl: e.target.value })
-                  }
-                />
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button onClick={() => setTelegramConfigOpen(false)}>Close</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+<Dialog open={telegramConfigOpen} onOpenChange={setTelegramConfigOpen}><DialogContent><DialogHeader><DialogTitle>Telegram Configuration</DialogTitle><DialogDescription>Stored secrets are hidden. Leave secret fields blank to keep them.</DialogDescription></DialogHeader><form onSubmit={(event) => { event.preventDefault(); const values = new FormData(event.currentTarget); updateTelegramConfigMutation.mutate({ botToken: String(values.get("botToken") || "") || undefined, webhookUrl: String(values.get("webhookUrl") || "") || undefined }); }}><div className="space-y-4 py-4"><div className="space-y-2"><Label htmlFor="telegram-botToken">botToken</Label><Input id="telegram-botToken" name="botToken" type="password" defaultValue={""} /></div><div className="space-y-2"><Label htmlFor="telegram-webhookUrl">webhookUrl</Label><Input id="telegram-webhookUrl" name="webhookUrl" type="text" defaultValue={telegramConfig?.webhookUrl || ""} /></div></div><DialogFooter><Button type="button" variant="outline" onClick={() => setTelegramConfigOpen(false)}>Close</Button><Button type="submit" disabled={updateTelegramConfigMutation.isPending}>Save</Button></DialogFooter></form></DialogContent></Dialog>
+
+
     </div>
   );
 }

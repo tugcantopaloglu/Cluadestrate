@@ -17,8 +17,12 @@ export function createFileSyncRoutes(fileSyncManager: FileSyncManager) {
   // Update config
   router.patch("/config", async (c) => {
     const updates = await c.req.json();
-    const config = fileSyncManager.updateConfig(updates);
-    return c.json(config);
+    try {
+      const config = fileSyncManager.updateConfig(updates);
+      return c.json(config);
+    } catch (error) {
+      return c.json({ error: (error as Error).message }, 400);
+    }
   });
 
   // List all folders

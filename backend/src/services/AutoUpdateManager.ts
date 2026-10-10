@@ -380,7 +380,7 @@ export class AutoUpdateManager extends EventEmitter {
       updating: hosts.filter((h) => h.status === "updating").length,
       errors: hosts.filter((h) => h.status === "error").length,
       latestVersion: this.latestVersion?.version,
-      lastCheck: Math.max(...hosts.map((h) => h.lastChecked.getTime())),
+      lastCheck: hosts.length ? Math.max(...hosts.map((h) => h.lastChecked.getTime())) : null,
       pendingUpdates: hosts.filter((h) => h.status === "outdated").length,
     };
   }

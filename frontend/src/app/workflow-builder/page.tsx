@@ -1,5 +1,7 @@
 "use client";
 
+import type * as Model from "../../../../backend/src/types/index";
+
 import { useState, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -57,16 +59,16 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { workflowBuilderApi } from "@/lib/api";
+import { workflowBuilderApi, workflowsApi } from "@/lib/api";
 import { toast } from "sonner";
 
 const nodeTypes = [
   { type: "session", label: "Session", icon: Box, color: "bg-blue-500" },
   { type: "condition", label: "Condition", icon: Diamond, color: "bg-yellow-500" },
   { type: "transform", label: "Transform", icon: Square, color: "bg-purple-500" },
-  { type: "aggregator", label: "Aggregator", icon: Circle, color: "bg-green-500" },
-  { type: "trigger", label: "Trigger", icon: Play, color: "bg-red-500" },
-  { type: "output", label: "Output", icon: GitBranch, color: "bg-orange-500" },
+  { type: "delay", label: "Delay", icon: Circle, color: "bg-green-500" },
+  { type: "start", label: "Start", icon: Play, color: "bg-red-500" },
+  { type: "end", label: "End", icon: GitBranch, color: "bg-orange-500" },
 ];
 
 export default function WorkflowBuilderPage() {
@@ -76,8 +78,9 @@ export default function WorkflowBuilderPage() {
   const [newCanvasDescription, setNewCanvasDescription] = useState("");
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
   const [addNodeOpen, setAddNodeOpen] = useState(false);
-  const [newNodeType, setNewNodeType] = useState("session");
+  const [newNodeType, setNewNodeType] = useState<Model.WorkflowNodeType>("session");
   const [newNodeLabel, setNewNodeLabel] = useState("");
+  const [newNodePrompt, setNewNodePrompt] = useState("");
 
   const queryClient = useQueryClient();
 
@@ -97,22 +100,20 @@ export default function WorkflowBuilderPage() {
     enabled: !!selectedCanvas,
   });
 
-  const { data: nodes = [] } = useQuery({
-    queryKey: ["workflow-builder-nodes", selectedCanvas],
-    queryFn: () => (selectedCanvas ? workflowBuilderApi.listNodes(selectedCanvas) : []),
-    enabled: !!selectedCanvas,
-  });
-
-  const { data: edges = [] } = useQuery({
-    queryKey: ["workflow-builder-edges", selectedCanvas],
-    queryFn: () => (selectedCanvas ? workflowBuilderApi.listEdges(selectedCanvas) : []),
-    enabled: !!selectedCanvas,
-  });
+  const nodes = canvas?.nodes || [];
+  const edges = canvas?.edges || [];
+  const { data: workflows = [] } = useQuery({ queryKey: ["workflows"], queryFn: workflowsApi.list });
+  const workflow = workflows.find((item) => item.id === canvas?.workflowId);
 
   const createCanvasMutation = useMutation({
-    mutationFn: workflowBuilderApi.createCanvas,
+    mutationFn: async (data: { name: string; description: string }) => {
+      const workflow = await workflowsApi.create({ ...data, steps: [] });
+      try { return await workflowBuilderApi.createCanvas(workflow.id); }
+      catch (error) { await workflowsApi.delete(workflow.id); throw error; }
+    },
     onSuccess: (newCanvas) => {
       queryClient.invalidateQueries({ queryKey: ["workflow-builder-canvases"] });
+      queryClient.invalidateQueries({ queryKey: ["workflows"] });
       queryClient.invalidateQueries({ queryKey: ["workflow-builder-stats"] });
       setSelectedCanvas(newCanvas.id);
       setNewCanvasOpen(false);
@@ -126,6 +127,7 @@ export default function WorkflowBuilderPage() {
     mutationFn: workflowBuilderApi.deleteCanvas,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["workflow-builder-canvases"] });
+      queryClient.invalidateQueries({ queryKey: ["workflows"] });
       queryClient.invalidateQueries({ queryKey: ["workflow-builder-stats"] });
       setSelectedCanvas(null);
       toast.success("Canvas deleted");
@@ -133,13 +135,14 @@ export default function WorkflowBuilderPage() {
   });
 
   const addNodeMutation = useMutation({
-    mutationFn: ({ canvasId, data }: { canvasId: string; data: any }) =>
-      workflowBuilderApi.addNode(canvasId, data),
+    mutationFn: ({ canvasId, data }: { canvasId: string; data: { type: Model.WorkflowNodeType; position: { x: number; y: number }; label: string; prompt: string } }) =>
+      workflowBuilderApi.addNode(canvasId, data.type, data.position).then((node) => workflowBuilderApi.updateNode(canvasId, node.id, { data: { ...node.data, label: data.label, config: node.data.config.type === "session" ? { ...node.data.config, prompt: data.prompt } : node.data.config } })),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["workflow-builder-nodes", selectedCanvas] });
+      queryClient.invalidateQueries({ queryKey: ["workflow-builder-canvas", selectedCanvas] });
       setAddNodeOpen(false);
       setNewNodeType("session");
       setNewNodeLabel("");
+      setNewNodePrompt("");
       toast.success("Node added");
     },
   });
@@ -148,26 +151,27 @@ export default function WorkflowBuilderPage() {
     mutationFn: ({ canvasId, nodeId }: { canvasId: string; nodeId: string }) =>
       workflowBuilderApi.deleteNode(canvasId, nodeId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["workflow-builder-nodes", selectedCanvas] });
-      queryClient.invalidateQueries({ queryKey: ["workflow-builder-edges", selectedCanvas] });
+      queryClient.invalidateQueries({ queryKey: ["workflow-builder-canvas", selectedCanvas] });
+      queryClient.invalidateQueries({ queryKey: ["workflow-builder-canvas", selectedCanvas] });
       setSelectedNode(null);
       toast.success("Node deleted");
     },
   });
 
   const validateCanvasMutation = useMutation({
-    mutationFn: workflowBuilderApi.validateCanvas,
+    mutationFn: async (canvasId: string) => workflowBuilderApi.validate(await workflowBuilderApi.getCanvas(canvasId)),
     onSuccess: (result) => {
       if (result.valid) {
         toast.success("Workflow is valid!");
       } else {
-        toast.error(`Validation failed: ${result.errors?.join(", ")}`);
+        toast.error(`Validation failed: ${result.errors.map((error) => error.message).join(", ")}`);
       }
     },
   });
 
   const exportCanvasMutation = useMutation({
-    mutationFn: workflowBuilderApi.exportCanvas,
+    mutationFn: workflowBuilderApi.exportToSteps,
+    onError: (error) => toast.error(error.message),
     onSuccess: (data) => {
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
@@ -187,8 +191,8 @@ export default function WorkflowBuilderPage() {
         data: {
           type: newNodeType,
           label: newNodeLabel,
+          prompt: newNodePrompt,
           position: { x: 200 + Math.random() * 200, y: 100 + Math.random() * 200 },
-          config: {},
         },
       });
     }
@@ -260,8 +264,8 @@ export default function WorkflowBuilderPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardDescription>Active</CardDescription>
-            <CardTitle className="text-3xl text-green-500">{stats?.activeCanvases || 0}</CardTitle>
+            <CardDescription>Valid</CardDescription>
+            <CardTitle className="text-3xl text-green-500">{stats?.validCanvases || 0}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
@@ -298,7 +302,7 @@ export default function WorkflowBuilderPage() {
                     </p>
                   ) : (
                     <div className="space-y-1 p-2">
-                      {canvases.map((c: any) => (
+                      {canvases.map((c) => (
                         <div
                           key={c.id}
                           className={`p-3 rounded-lg cursor-pointer transition-colors ${
@@ -310,15 +314,15 @@ export default function WorkflowBuilderPage() {
                         >
                           <div className="flex items-center justify-between">
                             <div>
-                              <p className="font-medium text-sm">{c.name}</p>
+                              <p className="font-medium text-sm">{workflows.find((item) => item.id === c.workflowId)?.name || c.workflowId}</p>
                               <p className={`text-xs ${
                                 selectedCanvas === c.id ? "text-primary-foreground/70" : "text-muted-foreground"
                               }`}>
                                 {c.nodes?.length || 0} nodes
                               </p>
                             </div>
-                            <Badge variant={c.status === "active" ? "default" : "secondary"} className="text-xs">
-                              {c.status}
+                            <Badge variant={c.edges.length > 0 ? "default" : "secondary"} className="text-xs">
+                              {c.nodes.length} nodes
                             </Badge>
                           </div>
                         </div>
@@ -360,8 +364,8 @@ export default function WorkflowBuilderPage() {
                 <CardHeader className="pb-2 border-b flex-shrink-0">
                   <div className="flex items-center justify-between">
                     <div>
-                      <CardTitle>{canvas.name}</CardTitle>
-                      <CardDescription>{canvas.description || "No description"}</CardDescription>
+                      <CardTitle>{workflow?.name || canvas.workflowId}</CardTitle>
+                      <CardDescription>{workflow?.description || "No description"}</CardDescription>
                     </div>
                     <div className="flex items-center gap-2">
                       <Button
@@ -398,7 +402,7 @@ export default function WorkflowBuilderPage() {
                           <div className="space-y-4 py-4">
                             <div className="space-y-2">
                               <Label>Node Type</Label>
-                              <Select value={newNodeType} onValueChange={setNewNodeType}>
+                              <Select value={newNodeType} onValueChange={(value) => setNewNodeType(value as Model.WorkflowNodeType)}>
                                 <SelectTrigger>
                                   <SelectValue />
                                 </SelectTrigger>
@@ -419,6 +423,12 @@ export default function WorkflowBuilderPage() {
                                 placeholder="Node label"
                               />
                             </div>
+                            {newNodeType === "session" && (
+                              <div className="space-y-2">
+                                <Label>Prompt</Label>
+                                <Textarea value={newNodePrompt} onChange={(event) => setNewNodePrompt(event.target.value)} placeholder="Session instructions" />
+                              </div>
+                            )}
                           </div>
                           <DialogFooter>
                             <Button variant="outline" onClick={() => setAddNodeOpen(false)}>
@@ -459,9 +469,9 @@ export default function WorkflowBuilderPage() {
 
                       {/* Edges */}
                       <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 1 }}>
-                        {edges.map((edge: any) => {
-                          const sourceNode = nodes.find((n: any) => n.id === edge.sourceId);
-                          const targetNode = nodes.find((n: any) => n.id === edge.targetId);
+                        {edges.map((edge) => {
+                          const sourceNode = nodes.find((n) => n.id === edge.source);
+                          const targetNode = nodes.find((n) => n.id === edge.target);
                           if (!sourceNode || !targetNode) return null;
 
                           const x1 = sourceNode.position.x + 60;
@@ -492,7 +502,7 @@ export default function WorkflowBuilderPage() {
 
                       {/* Nodes */}
                       <div className="relative" style={{ zIndex: 2 }}>
-                        {nodes.map((node: any) => {
+                        {nodes.map((node) => {
                           const nodeType = nodeTypes.find((nt) => nt.type === node.type);
                           const NodeIcon = nodeType?.icon || Box;
 
@@ -510,7 +520,7 @@ export default function WorkflowBuilderPage() {
                                   <NodeIcon className="w-4 h-4 text-white" />
                                 </div>
                                 <div>
-                                  <p className="font-medium text-sm">{node.label}</p>
+                                  <p className="font-medium text-sm">{node.data.label}</p>
                                   <p className="text-xs text-muted-foreground">{node.type}</p>
                                 </div>
                               </div>
@@ -536,7 +546,7 @@ export default function WorkflowBuilderPage() {
                         <div className="absolute inset-0 flex items-center justify-center">
                           <div className="text-center text-muted-foreground">
                             <Workflow className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                            <p>Click "Add Node" to start building your workflow</p>
+                            <p>Click &quot;Add Node&quot; to start building your workflow</p>
                           </div>
                         </div>
                       )}

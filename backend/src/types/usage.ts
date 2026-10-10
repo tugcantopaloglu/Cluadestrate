@@ -26,7 +26,26 @@ export interface UsageRecord {
 export interface UsageSummary {
   totalTokens: number;
   totalCost: number;
-  bySession: Record<string, { tokens: number; cost: number }>;
+  bySession: Record<string, SessionUsageSummary>;
+}
+
+export interface SessionUsageSummary {
+  tokens: number;
+  cost: number;
+  inputTokens: number;
+  outputTokens: number;
+  requests: number;
+  lastUsed: Date;
+}
+
+export interface UsageHistoryEntry {
+  date: string;
+  tokens: number;
+  cost: number;
+  inputTokens: number;
+  outputTokens: number;
+  sessionCount: number;
+  sessions: { sessionId: string; inputTokens: number; outputTokens: number; totalTokens: number; cost: number }[];
 }
 
 export interface UsageAlert {

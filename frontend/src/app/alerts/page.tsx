@@ -65,8 +65,8 @@ export default function AlertsPage() {
     type: "warning" as "critical" | "warning" | "info",
     condition: {
       metric: "usage.percent",
-      operator: ">" as ">" | ">=" | "<" | "<=" | "==" | "!=",
-      value: 75,
+      operator: "gt" as "gt" | "gte" | "lt" | "lte" | "eq",
+      threshold: 75,
     },
   });
 
@@ -131,8 +131,8 @@ export default function AlertsPage() {
         type: "warning",
         condition: {
           metric: "usage.percent",
-          operator: ">",
-          value: 75,
+          operator: "gt",
+          threshold: 75,
         },
       });
     },
@@ -193,7 +193,7 @@ export default function AlertsPage() {
           <CardHeader className="pb-2">
             <CardDescription>Alert Rules</CardDescription>
             <CardTitle className="text-3xl">
-              {stats?.enabledRules || 0}/{stats?.totalRules || 0}
+              {stats?.rulesEnabled || 0}/{stats?.rulesTotal || 0}
             </CardTitle>
           </CardHeader>
         </Card>
@@ -240,7 +240,7 @@ export default function AlertsPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {activeAlerts.map((alert: any) => (
+                  {activeAlerts.map((alert) => (
                     <div
                       key={alert.id}
                       className={`flex items-start justify-between p-4 border rounded-lg ${
@@ -319,7 +319,7 @@ export default function AlertsPage() {
               ) : (
                 <ScrollArea className="h-[400px]">
                   <div className="space-y-3">
-                    {alerts.map((alert: any) => (
+                    {alerts.map((alert) => (
                       <div
                         key={alert.id}
                         className={`flex items-start justify-between p-4 border rounded-lg ${
@@ -382,7 +382,7 @@ export default function AlertsPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {rules.map((rule: any) => (
+                  {rules.map((rule) => (
                     <div
                       key={rule.id}
                       className="flex items-center justify-between p-4 border rounded-lg"
@@ -395,7 +395,7 @@ export default function AlertsPage() {
                         <div>
                           <h4 className="font-medium">{rule.name}</h4>
                           <p className="text-sm text-muted-foreground">
-                            {rule.condition?.metric} {rule.condition?.operator} {rule.condition?.value}
+                            {rule.condition?.metric} {rule.condition?.operator} {rule.condition?.threshold}
                           </p>
                         </div>
                       </div>
@@ -489,7 +489,7 @@ export default function AlertsPage() {
                 </Select>
                 <Select
                   value={newRule.condition.operator}
-                  onValueChange={(value: ">" | ">=" | "<" | "<=" | "==" | "!=") =>
+                  onValueChange={(value: "gt" | "gte" | "lt" | "lte" | "eq") =>
                     setNewRule({
                       ...newRule,
                       condition: { ...newRule.condition, operator: value },
@@ -500,21 +500,21 @@ export default function AlertsPage() {
                     <SelectValue placeholder="Operator" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value=">">{">"}</SelectItem>
-                    <SelectItem value=">=">{">="}</SelectItem>
-                    <SelectItem value="<">{"<"}</SelectItem>
-                    <SelectItem value="<=">{"<="}</SelectItem>
-                    <SelectItem value="==">{"=="}</SelectItem>
-                    <SelectItem value="!=">{"!="}</SelectItem>
+                    <SelectItem value="gt">{">"}</SelectItem>
+                    <SelectItem value="gte">{">="}</SelectItem>
+                    <SelectItem value="lt">{"<"}</SelectItem>
+                    <SelectItem value="lte">{"<="}</SelectItem>
+                    <SelectItem value="eq">{"=="}</SelectItem>
+
                   </SelectContent>
                 </Select>
                 <Input
                   type="number"
-                  value={newRule.condition.value}
+                  value={newRule.condition.threshold}
                   onChange={(e) =>
                     setNewRule({
                       ...newRule,
-                      condition: { ...newRule.condition, value: parseInt(e.target.value) || 0 },
+                      condition: { ...newRule.condition, threshold: parseInt(e.target.value) || 0 },
                     })
                   }
                   placeholder="Value"

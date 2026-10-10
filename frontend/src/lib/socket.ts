@@ -47,7 +47,7 @@ export function disconnectSocket(): void {
   }
 }
 
-export type SocketEventCallback = (...args: any[]) => void;
+export type SocketEventCallback = (...args: unknown[]) => void;
 
 export function subscribeToSession(
   sessionId: string,

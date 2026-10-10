@@ -4,6 +4,10 @@ import { WorkflowBuilderManager } from "../services/WorkflowBuilderManager.js";
 export function createWorkflowBuilderRoutes(workflowBuilderManager: WorkflowBuilderManager) {
   const router = new Hono();
 
+  router.get("/stats", (c) => c.json(workflowBuilderManager.getStats()));
+
+  router.get("/canvas", (c) => c.json(workflowBuilderManager.listCanvases()));
+
   // Node Templates
   router.get("/templates", (c) => {
     return c.json(workflowBuilderManager.getNodeTemplates());
@@ -136,7 +140,14 @@ export function createWorkflowBuilderRoutes(workflowBuilderManager: WorkflowBuil
     if (!canvas) {
       return c.json({ error: "Canvas not found" }, 404);
     }
+    const validation = workflowBuilderManager.validateCanvas(canvas);
+    if (!validation.valid) {
+      return c.json({ error: `Workflow is invalid: ${validation.errors.map((error) => error.message).join("; ")}`, errors: validation.errors }, 400);
+    }
     const steps = workflowBuilderManager.canvasToWorkflowSteps(canvas);
+    if (steps.length === 0) {
+      return c.json({ error: "Workflow has no reachable steps to export" }, 400);
+    }
     return c.json({ steps });
   });
 

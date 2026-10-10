@@ -1,4 +1,4 @@
-import type { UsageRecord, UsageSummary, TokenUsage, UsageAlert } from "../types/index.js";
+import type { UsageRecord, UsageSummary, UsageHistoryEntry, TokenUsage, UsageAlert } from "../types/index.js";
 import { v4 as uuidv4 } from "uuid";
 import { EventEmitter } from "events";
 
@@ -74,14 +74,18 @@ export class UsageTracker extends EventEmitter {
       (r) => new Date(r.timestamp) >= today
     );
 
-    const bySession: Record<string, { tokens: number; cost: number }> = {};
+    const bySession: UsageSummary["bySession"] = {};
 
     for (const record of todayRecords) {
       if (!bySession[record.sessionId]) {
-        bySession[record.sessionId] = { tokens: 0, cost: 0 };
+        bySession[record.sessionId] = { tokens: 0, cost: 0, inputTokens: 0, outputTokens: 0, requests: 0, lastUsed: record.timestamp };
       }
       bySession[record.sessionId].tokens += record.tokens.total;
       bySession[record.sessionId].cost += record.cost.estimated;
+      bySession[record.sessionId].inputTokens += record.tokens.input;
+      bySession[record.sessionId].outputTokens += record.tokens.output;
+      bySession[record.sessionId].requests += 1;
+      bySession[record.sessionId].lastUsed = record.timestamp;
     }
 
     return {
@@ -93,9 +97,9 @@ export class UsageTracker extends EventEmitter {
 
   async getHistory(
     days: number = 7
-  ): Promise<{ date: string; tokens: number; cost: number }[]> {
+  ): Promise<UsageHistoryEntry[]> {
     const now = new Date();
-    const history: { date: string; tokens: number; cost: number }[] = [];
+    const history: UsageHistoryEntry[] = [];
 
     for (let i = days - 1; i >= 0; i--) {
       const date = new Date(now);
@@ -110,10 +114,23 @@ export class UsageTracker extends EventEmitter {
         return recordDate >= date && recordDate < nextDate;
       });
 
+      const sessions = new Map<string, UsageHistoryEntry["sessions"][number]>();
+      for (const record of dayRecords) {
+        const session = sessions.get(record.sessionId) || { sessionId: record.sessionId, inputTokens: 0, outputTokens: 0, totalTokens: 0, cost: 0 };
+        session.inputTokens += record.tokens.input;
+        session.outputTokens += record.tokens.output;
+        session.totalTokens += record.tokens.total;
+        session.cost += record.cost.estimated;
+        sessions.set(record.sessionId, session);
+      }
       history.push({
         date: date.toISOString().split("T")[0],
         tokens: dayRecords.reduce((sum, r) => sum + r.tokens.total, 0),
         cost: dayRecords.reduce((sum, r) => sum + r.cost.estimated, 0),
+        inputTokens: dayRecords.reduce((sum, r) => sum + r.tokens.input, 0),
+        outputTokens: dayRecords.reduce((sum, r) => sum + r.tokens.output, 0),
+        sessionCount: sessions.size,
+        sessions: [...sessions.values()],
       });
     }
 

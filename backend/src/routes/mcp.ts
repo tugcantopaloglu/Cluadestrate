@@ -1,7 +1,8 @@
 import { Hono } from "hono";
+import type { MCPManager } from "../services/MCPManager.js";
 import type { CreateMCPServerRequest } from "../types/index.js";
 
-let mcpManager: any = null;
+let mcpManager: MCPManager | null = null;
 
 const getMCPManager = async () => {
   if (!mcpManager) {

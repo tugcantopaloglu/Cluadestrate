@@ -1,7 +1,8 @@
 import { Hono } from "hono";
+import type { RulesEngine } from "../services/RulesEngine.js";
 import type { CreateHardRuleRequest } from "../types/index.js";
 
-let rulesEngine: any = null;
+let rulesEngine: RulesEngine | null = null;
 
 const getRulesEngine = async () => {
   if (!rulesEngine) {

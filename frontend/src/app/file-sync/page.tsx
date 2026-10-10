@@ -1,5 +1,7 @@
 "use client";
 
+import type { ApiRequests } from "@/types/api";
+
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -83,7 +85,7 @@ export default function FileSyncPage() {
 
   const { data: conflicts = [] } = useQuery({
     queryKey: ["file-sync-conflicts"],
-    queryFn: fileSyncApi.listConflicts,
+    queryFn: fileSyncApi.getConflicts,
   });
 
   const { data: operations = [] } = useQuery({
@@ -104,7 +106,7 @@ export default function FileSyncPage() {
   });
 
   const addFolderMutation = useMutation({
-    mutationFn: fileSyncApi.addFolder,
+    mutationFn: (data: { path: string; name: string }) => fileSyncApi.addFolder({ hostId: "local", hostName: data.name, remotePath: data.path }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["file-sync-folders"] });
       queryClient.invalidateQueries({ queryKey: ["file-sync-stats"] });
@@ -141,8 +143,8 @@ export default function FileSyncPage() {
   });
 
   const resolveConflictMutation = useMutation({
-    mutationFn: ({ fileId, resolution }: { fileId: string; resolution: "local" | "remote" | "merge" }) =>
-      fileSyncApi.resolveConflict(fileId, resolution),
+    mutationFn: ({ fileId, resolution }: { fileId: string; resolution: "local" | "remote" }) =>
+      fileSyncApi.resolveConflict({ fileId, resolution: resolution === "local" ? "keep_local" : "keep_remote" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["file-sync-conflicts"] });
       queryClient.invalidateQueries({ queryKey: ["file-sync-stats"] });
@@ -217,7 +219,7 @@ export default function FileSyncPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Synced Folders</CardDescription>
-            <CardTitle className="text-3xl">{stats?.syncedFolders || 0}</CardTitle>
+            <CardTitle className="text-3xl">{stats?.totalFolders || 0}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
@@ -229,13 +231,13 @@ export default function FileSyncPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Pending Changes</CardDescription>
-            <CardTitle className="text-3xl text-yellow-500">{stats?.pendingChanges || 0}</CardTitle>
+            <CardTitle className="text-3xl text-yellow-500">{stats?.pendingFiles || 0}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Conflicts</CardDescription>
-            <CardTitle className="text-3xl text-red-500">{stats?.conflicts || 0}</CardTitle>
+            <CardTitle className="text-3xl text-red-500">{stats?.conflictFiles || 0}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
@@ -280,7 +282,7 @@ export default function FileSyncPage() {
             ) : (
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-1 space-y-2">
-                  {folders.map((folder: any) => (
+                  {folders.map((folder) => (
                     <Card
                       key={folder.id}
                       className={`cursor-pointer transition-colors ${
@@ -293,14 +295,14 @@ export default function FileSyncPage() {
                           <div className="flex items-center gap-3">
                             <FolderOpen className="w-5 h-5 text-blue-500" />
                             <div>
-                              <p className="font-medium">{folder.name || folder.path}</p>
+                              <p className="font-medium">{folder.hostName || folder.remotePath}</p>
                               <p className="text-xs text-muted-foreground truncate max-w-[200px]">
-                                {folder.path}
+                                {folder.remotePath}
                               </p>
                             </div>
                           </div>
-                          <Badge variant={folder.enabled ? "default" : "secondary"}>
-                            {folder.enabled ? "Active" : "Paused"}
+                          <Badge variant={folder.status === "synced" ? "default" : "secondary"}>
+                            {folder.status}
                           </Badge>
                         </div>
                       </CardContent>
@@ -314,8 +316,8 @@ export default function FileSyncPage() {
                       <CardHeader>
                         <div className="flex items-center justify-between">
                           <div>
-                            <CardTitle>{selectedFolderData.name || selectedFolderData.path}</CardTitle>
-                            <CardDescription>{selectedFolderData.path}</CardDescription>
+                            <CardTitle>{selectedFolderData.hostName || selectedFolderData.remotePath}</CardTitle>
+                            <CardDescription>{selectedFolderData.remotePath}</CardDescription>
                           </div>
                           <div className="flex items-center gap-2">
                             <Button
@@ -355,27 +357,27 @@ export default function FileSyncPage() {
                                 </TableCell>
                               </TableRow>
                             ) : (
-                              folderFiles.map((file: any) => (
+                              folderFiles.map((file) => (
                                 <TableRow key={file.id}>
                                   <TableCell className="flex items-center gap-2">
                                     <FileText className="w-4 h-4 text-muted-foreground" />
-                                    {file.relativePath}
+                                    {file.remotePath}
                                   </TableCell>
                                   <TableCell>
                                     <Badge
                                       variant={
-                                        file.syncStatus === "synced"
+                                        file.status === "synced"
                                           ? "default"
-                                          : file.syncStatus === "pending"
+                                          : file.status === "modified"
                                           ? "secondary"
                                           : "destructive"
                                       }
                                     >
-                                      {file.syncStatus}
+                                      {file.status}
                                     </Badge>
                                   </TableCell>
                                   <TableCell className="text-sm text-muted-foreground">
-                                    {new Date(file.localModified).toLocaleString()}
+                                    {new Date(file.lastModified).toLocaleString()}
                                   </TableCell>
                                   <TableCell>
                                     <Badge variant="outline">{file.versions?.length || 0}</Badge>
@@ -412,17 +414,17 @@ export default function FileSyncPage() {
               </Card>
             ) : (
               <div className="space-y-4">
-                {conflicts.map((file: any) => (
+                {conflicts.map((file) => (
                   <Card key={file.id}>
                     <CardContent className="p-4">
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
                           <AlertTriangle className="w-5 h-5 text-yellow-500" />
                           <div>
-                            <p className="font-medium">{file.relativePath}</p>
+                            <p className="font-medium">{file.remotePath}</p>
                             <p className="text-sm text-muted-foreground">
-                              Local: {new Date(file.localModified).toLocaleString()} |
-                              Remote: {new Date(file.remoteModified).toLocaleString()}
+                              Local: {new Date(file.lastModified).toLocaleString()} |
+                              Remote: {new Date(file.syncedAt).toLocaleString()}
                             </p>
                           </div>
                         </div>
@@ -443,7 +445,7 @@ export default function FileSyncPage() {
                           </Button>
                           <Button
                             size="sm"
-                            onClick={() => resolveConflictMutation.mutate({ fileId: file.id, resolution: "merge" })}
+                            disabled title="Merge requires edited content; keep local or remote instead"
                           >
                             <GitMerge className="w-4 h-4 mr-2" />
                             Merge
@@ -481,12 +483,12 @@ export default function FileSyncPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      operations.slice(0, 20).map((op: any) => (
+                      operations.slice(0, 20).map((op) => (
                         <TableRow key={op.id}>
                           <TableCell>
                             <Badge variant="outline">{op.type}</Badge>
                           </TableCell>
-                          <TableCell>{op.filePath}</TableCell>
+                          <TableCell>{op.fileId || op.folderId}</TableCell>
                           <TableCell>
                             <Badge
                               variant={
@@ -501,7 +503,7 @@ export default function FileSyncPage() {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
-                            {new Date(op.createdAt).toLocaleString()}
+                            {new Date(op.startedAt).toLocaleString()}
                           </TableCell>
                         </TableRow>
                       ))
@@ -547,12 +549,15 @@ export default function FileSyncPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label>Max File Size (MB)</Label>
+              <Label>Version History Limit</Label>
               <Input
                 type="number"
-                defaultValue={config?.maxFileSizeMB || 10}
+                min="1"
+                max="1000"
+                step="1"
+                defaultValue={config?.maxVersionHistory || 10}
                 onChange={(e) =>
-                  updateConfigMutation.mutate({ maxFileSizeMB: parseInt(e.target.value) })
+                  Number.isInteger(e.target.valueAsNumber) && e.target.valueAsNumber >= 1 && e.target.valueAsNumber <= 1000 && updateConfigMutation.mutate({ maxVersionHistory: e.target.valueAsNumber })
                 }
               />
             </div>
@@ -561,7 +566,7 @@ export default function FileSyncPage() {
               <Select
                 defaultValue={config?.conflictResolution || "manual"}
                 onValueChange={(value) =>
-                  updateConfigMutation.mutate({ conflictResolution: value as any })
+                  updateConfigMutation.mutate({ conflictResolution: value as NonNullable<ApiRequests["PATCH /api/file-sync/config"]["conflictResolution"]> })
                 }
               >
                 <SelectTrigger>

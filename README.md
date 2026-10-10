@@ -31,7 +31,7 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000). The API and browser socket use port 3001. Both the API and agent transport bind to the backend's loopback address. `HOST` accepts only `127.0.0.1`, `localhost`, or `::1`. Browser requests must originate from `http://localhost:3000` or `http://127.0.0.1:3000`.
 
-Production build commands, after resolving the current frontend type errors:
+Production build commands:
 
 ```sh
 npm run build
@@ -40,7 +40,7 @@ npm start
 
 The frontend build downloads the configured Google fonts and requires network access. Build the optional host agent separately with `npm --prefix agent run build`; see [agent instructions](agent/README.md).
 
-The frontend bundles successfully but currently fails TypeScript validation with 76 diagnostics in eight existing pages: auto-update, bots, email, file-sync, mcp-hosts, n8n, supervisors, and workflow-builder. These pages call missing API helpers or pass incompatible payloads. A production frontend server has not been validated. The backend and host agent compile separately, and their isolated regression and backend startup tests pass. The initial full frontend lint check reported 389 errors and 68 warnings in existing source; these findings are not suppressed.
+The frontend production build, backend build, and host agent build pass. The frontend API helpers use the backend's request and serialized response types. Lint passes with no errors and 76 warnings, mainly unused imports and existing hook warnings. Local tests cover backend boundaries, real loopback Socket.IO agent connections, and frontend API helpers calling the compiled backend for metadata and CRUD operations. These checks do not establish real provider or remote-machine operation.
 
 ## Local access and remote agents
 
@@ -60,6 +60,10 @@ The agent then connects to `ws://127.0.0.1:3001` using Socket.IO's `/agent` name
 
 - Terminal endpoints maintain metadata and echo input; they do not create a terminal process.
 - Backend screenshots, thumbnails, remote discovery, auto-updates, and supervisor model execution contain placeholder or simulated behavior.
+- The workflow builder can create canvases, add and delete nodes, validate stored graphs, and export steps. Dragging, connection editing, and zoom controls remain previews. Canvases are held in memory and reset when the backend restarts.
+- The n8n screen shows stored webhook metadata and measured counters. Individual webhook tests and per-request history are unavailable. Incoming n8n orchestration handlers remain prototypes.
+- The agent installation dialog gives source-build instructions. The legacy generated download scripts reference unavailable binaries and must not be used as installers.
+- Email configuration supports the implemented SMTP transport. Other email providers remain prototypes. Stored credentials are hidden from responses; blank secret fields keep them.
 - Agent `update` and `sync_files` responses are placeholders. Its screenshot support is platform dependent.
 - Usage costs and token counters are estimates, not provider billing records.
 - Git's command endpoint supports the dashboard quick commands: `git status`, `git pull`, `git fetch`, `git add .`, `git stash`, and `git stash pop`. Run other Git operations in a trusted terminal.
@@ -82,4 +86,6 @@ npm --prefix frontend audit
 npm --prefix agent audit
 ```
 
-The regression tests use temporary Git and file fixtures and a loopback Socket.IO server with a stub host manager. They do not start provider sessions, run remote shell commands, capture the screen, install services, reboot a machine, or contact external integrations.
+The regression tests use temporary Git and file fixtures and a loopback Socket.IO server with a stub host manager. The compiled smoke tests start the real backend in an isolated temporary directory and call it through the frontend API helpers. They do not start provider sessions, run remote shell commands, capture the screen, install services, reboot a machine, or contact external integrations.
+
+The validation workflow runs builds, lint, regression and startup tests, and production dependency audits on Node.js 22. Development audit reports are retained as artifacts; their steps report the known toolchain advisories without blocking the runtime checks. The workflow does not deploy or publish anything.

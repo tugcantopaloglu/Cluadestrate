@@ -1,5 +1,7 @@
 "use client";
 
+import type { ApiResponses } from "@/types/api";
+
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -61,10 +63,10 @@ import { emailApi } from "@/lib/api";
 import { toast } from "sonner";
 
 const templateCategories = [
-  { value: "notification", label: "Notification" },
+  { value: "session", label: "Session" },
   { value: "alert", label: "Alert" },
   { value: "report", label: "Report" },
-  { value: "custom", label: "Custom" },
+  { value: "system", label: "System" },
 ];
 
 export default function EmailPage() {
@@ -72,14 +74,14 @@ export default function EmailPage() {
   const [addTemplateOpen, setAddTemplateOpen] = useState(false);
   const [addRecipientOpen, setAddRecipientOpen] = useState(false);
   const [composeOpen, setComposeOpen] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState<any | null>(null);
-  const [selectedMessage, setSelectedMessage] = useState<any | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<ApiResponses["GET /api/email/templates"][number] | null>(null);
+  const [selectedMessage, setSelectedMessage] = useState<ApiResponses["GET /api/email/messages"][number] | null>(null);
 
   const [newTemplate, setNewTemplate] = useState({
     name: "",
     subject: "",
     body: "",
-    category: "notification",
+    category: "session",
   });
 
   const [newRecipient, setNewRecipient] = useState({
@@ -142,11 +144,11 @@ export default function EmailPage() {
   });
 
   const createTemplateMutation = useMutation({
-    mutationFn: emailApi.createTemplate,
+    mutationFn: (data: typeof newTemplate) => emailApi.createTemplate({ name: data.name, subject: data.subject, textContent: data.body, htmlContent: "", variables: [...new Set([...`${data.subject}\n${data.body}`.matchAll(/\{\{(\w+)\}\}/g)].map((match) => match[1]))], category: data.category as Parameters<typeof emailApi.createTemplate>[0]["category"] }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["email-templates"] });
       setAddTemplateOpen(false);
-      setNewTemplate({ name: "", subject: "", body: "", category: "notification" });
+      setNewTemplate({ name: "", subject: "", body: "", category: "session" });
       toast.success("Template created");
     },
   });
@@ -160,7 +162,7 @@ export default function EmailPage() {
   });
 
   const addRecipientMutation = useMutation({
-    mutationFn: emailApi.addRecipient,
+    mutationFn: (data: typeof newRecipient) => emailApi.addRecipient({ name: data.name, email: data.email, preferences: { enabled: true, categories: ["session", "workflow", "alert", "usage", "system", "report"], digest: "immediate" } }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["email-recipients"] });
       setAddRecipientOpen(false);
@@ -178,10 +180,14 @@ export default function EmailPage() {
   });
 
   const sendEmailMutation = useMutation({
-    mutationFn: emailApi.send,
-    onSuccess: () => {
+    mutationFn: (data: typeof composeData) => emailApi.sendEmail({ to: data.to.split(/[,;]+/).map((email) => email.trim()).filter(Boolean), subject: data.subject, htmlContent: "", textContent: data.body }),
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["email-messages"] });
       queryClient.invalidateQueries({ queryKey: ["email-stats"] });
+      if (result.status === "failed") {
+        toast.error(result.error || "Email could not be sent");
+        return;
+      }
       setComposeOpen(false);
       setComposeData({ to: "", subject: "", body: "", templateId: "" });
       toast.success("Email sent");
@@ -230,15 +236,15 @@ export default function EmailPage() {
                 <div className="space-y-2">
                   <Label>Template (optional)</Label>
                   <Select
-                    value={composeData.templateId}
+                    value={composeData.templateId || "none"}
                     onValueChange={(value) => {
-                      const template = templates.find((t: any) => t.id === value);
+                      const template = templates.find((t) => t.id === value);
                       if (template) {
                         setComposeData({
                           ...composeData,
-                          templateId: value,
+                        templateId: value === "none" ? "" : value,
                           subject: template.subject,
-                          body: template.body,
+                          body: template.textContent,
                         });
                       } else {
                         setComposeData({ ...composeData, templateId: value });
@@ -249,8 +255,8 @@ export default function EmailPage() {
                       <SelectValue placeholder="Select a template" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">None</SelectItem>
-                      {templates.map((t: any) => (
+                      <SelectItem value="none">None</SelectItem>
+                      {templates.map((t) => (
                         <SelectItem key={t.id} value={t.id}>
                           {t.name}
                         </SelectItem>
@@ -293,19 +299,19 @@ export default function EmailPage() {
       </div>
 
       {/* Connection Status */}
-      <Card className={config?.enabled ? "border-green-500/20 bg-green-500/5" : "border-yellow-500/20 bg-yellow-500/5"}>
+      <Card className={config?.enabled && config.configured ? "border-green-500/20 bg-green-500/5" : "border-yellow-500/20 bg-yellow-500/5"}>
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className={`p-3 rounded-lg ${config?.enabled ? "bg-green-500/20" : "bg-yellow-500/20"}`}>
-                <Mail className={`w-6 h-6 ${config?.enabled ? "text-green-500" : "text-yellow-500"}`} />
+              <div className={`p-3 rounded-lg ${config?.enabled && config.configured ? "bg-green-500/20" : "bg-yellow-500/20"}`}>
+                <Mail className={`w-6 h-6 ${config?.enabled && config.configured ? "text-green-500" : "text-yellow-500"}`} />
               </div>
               <div>
                 <h3 className="font-semibold">
-                  {config?.enabled ? "Email Service Connected" : "Email Service Not Configured"}
+                  {config?.enabled && config.configured ? "Email Service Configured" : "Email Service Not Configured"}
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                  Provider: {config?.provider || "Not set"} | From: {config?.fromEmail || "Not set"}
+                  Provider: {config?.provider || "Not set"} | From: {config?.from.email || "Not set"}
                 </p>
               </div>
             </div>
@@ -337,25 +343,25 @@ export default function EmailPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Delivered</CardDescription>
-            <CardTitle className="text-3xl text-green-500">{stats?.delivered || 0}</CardTitle>
+            <CardTitle className="text-3xl text-green-500">{stats?.totalSent || 0}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Failed</CardDescription>
-            <CardTitle className="text-3xl text-red-500">{stats?.failed || 0}</CardTitle>
+            <CardTitle className="text-3xl text-red-500">{stats?.totalFailed || 0}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Templates</CardDescription>
-            <CardTitle className="text-3xl">{stats?.templates || templates.length}</CardTitle>
+            <CardTitle className="text-3xl">{templates.length || templates.length}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>Recipients</CardDescription>
-            <CardTitle className="text-3xl">{stats?.recipients || recipients.length}</CardTitle>
+            <CardTitle className="text-3xl">{recipients.length || recipients.length}</CardTitle>
           </CardHeader>
         </Card>
       </div>
@@ -470,7 +476,7 @@ export default function EmailPage() {
               </Card>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {templates.map((template: any) => (
+                {templates.map((template) => (
                   <Card key={template.id}>
                     <CardHeader className="pb-2">
                       <div className="flex items-center justify-between">
@@ -481,7 +487,7 @@ export default function EmailPage() {
                     </CardHeader>
                     <CardContent>
                       <p className="text-sm text-muted-foreground line-clamp-2 mb-4">
-                        {template.body}
+                        {template.textContent}
                       </p>
                       <div className="flex items-center gap-2">
                         <Button
@@ -493,7 +499,7 @@ export default function EmailPage() {
                               ...composeData,
                               templateId: template.id,
                               subject: template.subject,
-                              body: template.body,
+                              body: template.textContent,
                             });
                             setComposeOpen(true);
                           }}
@@ -595,7 +601,7 @@ export default function EmailPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {recipients.map((recipient: any) => (
+                      {recipients.map((recipient) => (
                         <TableRow key={recipient.id}>
                           <TableCell className="font-medium">
                             <div className="flex items-center gap-2">
@@ -606,7 +612,7 @@ export default function EmailPage() {
                           <TableCell>{recipient.email}</TableCell>
                           <TableCell>
                             <div className="flex gap-1">
-                              {recipient.subscriptions?.map((sub: string) => (
+                              {recipient.preferences.categories?.map((sub: string) => (
                                 <Badge key={sub} variant="outline" className="text-xs">
                                   {sub}
                                 </Badge>
@@ -614,8 +620,8 @@ export default function EmailPage() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge variant={recipient.enabled ? "default" : "secondary"}>
-                              {recipient.enabled ? "Active" : "Inactive"}
+                            <Badge variant={recipient.preferences.enabled ? "default" : "secondary"}>
+                              {recipient.preferences.enabled ? "Active" : "Inactive"}
                             </Badge>
                           </TableCell>
                           <TableCell>
@@ -673,7 +679,7 @@ export default function EmailPage() {
                         </TableCell>
                       </TableRow>
                     ) : (
-                      messages.map((message: any) => (
+                      messages.map((message) => (
                         <TableRow key={message.id}>
                           <TableCell>{message.to}</TableCell>
                           <TableCell className="max-w-[200px] truncate">
@@ -682,21 +688,21 @@ export default function EmailPage() {
                           <TableCell>
                             <Badge
                               variant={
-                                message.status === "delivered"
+                                message.status === "sent"
                                   ? "default"
                                   : message.status === "failed"
                                   ? "destructive"
                                   : "secondary"
                               }
                             >
-                              {message.status === "delivered" && <CheckCircle className="w-3 h-3 mr-1" />}
+                              {message.status === "sent" && <CheckCircle className="w-3 h-3 mr-1" />}
                               {message.status === "failed" && <XCircle className="w-3 h-3 mr-1" />}
-                              {message.status === "pending" && <Clock className="w-3 h-3 mr-1" />}
+                              {message.status === "queued" && <Clock className="w-3 h-3 mr-1" />}
                               {message.status}
                             </Badge>
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">
-                            {new Date(message.sentAt).toLocaleString()}
+                            {message.sentAt ? new Date(message.sentAt).toLocaleString() : "Not sent"}
                           </TableCell>
                           <TableCell>
                             <Button
@@ -718,108 +724,32 @@ export default function EmailPage() {
         </Tabs>
       )}
 
-      {/* Config Dialog */}
       <Dialog open={configOpen} onOpenChange={setConfigOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Email Configuration</DialogTitle>
-            <DialogDescription>
-              Configure your email service provider
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Enable Email</Label>
-                <p className="text-sm text-muted-foreground">Enable email notifications</p>
-              </div>
-              <Switch
-                checked={config?.enabled}
-                onCheckedChange={(checked) =>
-                  updateConfigMutation.mutate({ enabled: checked })
-                }
-              />
+        <DialogContent><DialogHeader><DialogTitle>Email Configuration</DialogTitle><DialogDescription>SMTP is the implemented provider. Stored credentials are hidden. Leave SMTP fields blank to keep them.</DialogDescription></DialogHeader>
+          <form onSubmit={(event) => {
+            event.preventDefault();
+            const values = new FormData(event.currentTarget);
+            const host = String(values.get("host") || "");
+            const user = String(values.get("user") || "");
+            updateConfigMutation.mutate({
+              enabled: values.has("enabled"),
+              provider: "smtp",
+              from: { email: String(values.get("fromEmail") || ""), name: String(values.get("fromName") || "") },
+              ...(host && user ? { smtp: { host, port: Number(values.get("port")) || 587, secure: values.has("secure"), auth: { user, pass: String(values.get("pass") || "") } } } : {}),
+            });
+          }}>
+            <div className="space-y-4 py-4">
+              <Label><input name="enabled" type="checkbox" defaultChecked={config?.enabled} /> Enable Email</Label>
+              <div><Label htmlFor="email-from">From Email</Label><Input id="email-from" name="fromEmail" type="email" required defaultValue={config?.from.email || ""} /></div>
+              <div><Label htmlFor="email-name">From Name</Label><Input id="email-name" name="fromName" defaultValue={config?.from.name || ""} /></div>
+              <div><Label htmlFor="email-host">SMTP Host</Label><Input id="email-host" name="host" placeholder="smtp.example.com" /></div>
+              <div><Label htmlFor="email-port">SMTP Port</Label><Input id="email-port" name="port" type="number" min="1" max="65535" defaultValue="587" /></div>
+              <Label><input name="secure" type="checkbox" /> Use TLS from connection start</Label>
+              <div><Label htmlFor="email-user">SMTP User</Label><Input id="email-user" name="user" /></div>
+              <div><Label htmlFor="email-pass">SMTP Password</Label><Input id="email-pass" name="pass" type="password" /></div>
             </div>
-            <div className="space-y-2">
-              <Label>Provider</Label>
-              <Select
-                defaultValue={config?.provider || "smtp"}
-                onValueChange={(value) =>
-                  updateConfigMutation.mutate({ provider: value as any })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="smtp">SMTP</SelectItem>
-                  <SelectItem value="sendgrid">SendGrid</SelectItem>
-                  <SelectItem value="mailgun">Mailgun</SelectItem>
-                  <SelectItem value="ses">Amazon SES</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>From Email</Label>
-              <Input
-                defaultValue={config?.fromEmail || ""}
-                placeholder="noreply@example.com"
-                onChange={(e) =>
-                  updateConfigMutation.mutate({ fromEmail: e.target.value })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>From Name</Label>
-              <Input
-                defaultValue={config?.fromName || ""}
-                placeholder="Cluadestrate"
-                onChange={(e) =>
-                  updateConfigMutation.mutate({ fromName: e.target.value })
-                }
-              />
-            </div>
-            {config?.provider === "smtp" && (
-              <>
-                <div className="space-y-2">
-                  <Label>SMTP Host</Label>
-                  <Input
-                    defaultValue={config?.smtpHost || ""}
-                    placeholder="smtp.example.com"
-                    onChange={(e) =>
-                      updateConfigMutation.mutate({ smtpHost: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>SMTP Port</Label>
-                  <Input
-                    type="number"
-                    defaultValue={config?.smtpPort || 587}
-                    onChange={(e) =>
-                      updateConfigMutation.mutate({ smtpPort: parseInt(e.target.value) })
-                    }
-                  />
-                </div>
-              </>
-            )}
-            {config?.provider !== "smtp" && (
-              <div className="space-y-2">
-                <Label>API Key</Label>
-                <Input
-                  type="password"
-                  defaultValue={config?.apiKey || ""}
-                  placeholder="Your API key"
-                  onChange={(e) =>
-                    updateConfigMutation.mutate({ apiKey: e.target.value })
-                  }
-                />
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button onClick={() => setConfigOpen(false)}>Close</Button>
-          </DialogFooter>
+            <DialogFooter><Button type="button" variant="outline" onClick={() => setConfigOpen(false)}>Close</Button><Button type="submit" disabled={updateConfigMutation.isPending}>Save</Button></DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
@@ -840,7 +770,7 @@ export default function EmailPage() {
                   <Label className="text-muted-foreground">Status</Label>
                   <Badge
                     variant={
-                      selectedMessage.status === "delivered" ? "default" : "destructive"
+                      selectedMessage.status === "sent" ? "default" : "destructive"
                     }
                   >
                     {selectedMessage.status}
@@ -854,20 +784,14 @@ export default function EmailPage() {
               <div>
                 <Label className="text-muted-foreground">Body</Label>
                 <div className="p-4 bg-muted rounded-lg whitespace-pre-wrap text-sm">
-                  {selectedMessage.body}
+                  {selectedMessage.textContent || selectedMessage.htmlContent}
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
                 <div>
                   <Label className="text-muted-foreground">Sent At</Label>
-                  <p>{new Date(selectedMessage.sentAt).toLocaleString()}</p>
+                  <p>{selectedMessage.sentAt ? new Date(selectedMessage.sentAt).toLocaleString() : "Not sent"}</p>
                 </div>
-                {selectedMessage.deliveredAt && (
-                  <div>
-                    <Label className="text-muted-foreground">Delivered At</Label>
-                    <p>{new Date(selectedMessage.deliveredAt).toLocaleString()}</p>
-                  </div>
-                )}
               </div>
             </div>
           )}

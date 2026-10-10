@@ -193,14 +193,14 @@ export default function TasksPage() {
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>In Progress</CardDescription>
-            <CardTitle className="text-3xl">{stats?.inProgress || 0}</CardTitle>
+            <CardTitle className="text-3xl">{stats?.byStatus.in_progress || 0}</CardTitle>
           </CardHeader>
         </Card>
         <Card>
           <CardHeader className="pb-2">
             <CardDescription>High Priority</CardDescription>
             <CardTitle className="text-3xl text-red-500">
-              {stats?.highPriority || 0}
+              {stats?.byPriority.high || 0}
             </CardTitle>
           </CardHeader>
         </Card>
@@ -208,7 +208,7 @@ export default function TasksPage() {
           <CardHeader className="pb-2">
             <CardDescription>Completed</CardDescription>
             <CardTitle className="text-3xl text-green-500">
-              {stats?.completed || 0}
+              {stats?.byStatus.done || 0}
             </CardTitle>
           </CardHeader>
         </Card>
@@ -239,7 +239,7 @@ export default function TasksPage() {
                 <CardContent>
                   <ScrollArea className="h-[400px] pr-2">
                     <div className="space-y-3">
-                      {tasks.map((task: any) => (
+                      {tasks.map((task) => (
                         <Card key={task.id} className="cursor-pointer hover:bg-accent">
                           <CardContent className="p-4">
                             <div className="flex items-start justify-between mb-2">
@@ -267,7 +267,7 @@ export default function TasksPage() {
                                   <DropdownMenuSeparator />
                                   {sessions.length > 0 && (
                                     <>
-                                      {sessions.map((session: any) => (
+                                      {sessions.map((session) => (
                                         <DropdownMenuItem
                                           key={session.id}
                                           onClick={() =>
